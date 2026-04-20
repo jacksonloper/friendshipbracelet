@@ -19,7 +19,7 @@ const PADDING_TOP = 20;
 const STRAND_WIDTH = 5;
 const OUTLINE_WIDTH = 2;
 // Outline stops this far from knot center; color stops closer (creating gap in outline)
-const OUTLINE_GAP = KNOT_RADIUS + 1;
+const OUTLINE_GAP = KNOT_RADIUS + 4; // passive strand outline stops well outside circle stroke
 const COLOR_GAP = KNOT_RADIUS - 3; // color extends past outline, into the circle
 
 function strandX(index: number): number {
