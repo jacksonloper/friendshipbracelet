@@ -113,6 +113,8 @@ h1 {
 .knot-node {
   cursor: pointer;
   transition: transform 0.1s;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 .knot-node:hover {
