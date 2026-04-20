@@ -46,13 +46,15 @@ export function computeStrandOrder(state: BraceletState): number[][] {
       const knotType = knots[row]?.[k] ?? 'FF';
       
       // Determine if strands swap positions
-      if (knotType === 'FF' || knotType === 'BF') {
-        // Strands swap: left goes to right position, right goes to left position
+      // FF: left strand moves right, right strand moves left → swap
+      // BB: right strand moves left, left strand moves right → swap
+      // FB: left goes over then comes back → no swap
+      // BF: right goes over then comes back → no swap
+      if (knotType === 'FF' || knotType === 'BB') {
         const temp = current[leftIdx];
         current[leftIdx] = current[rightIdx];
         current[rightIdx] = temp;
       }
-      // FB and BB: strands stay in same positions
     }
     strandOrder.push([...current]);
   }
