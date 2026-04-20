@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   BraceletState,
   KnotType,
@@ -26,9 +26,30 @@ function initialState(): BraceletState {
   };
 }
 
+function isValidStrands(val: string): boolean {
+  const n = parseInt(val, 10);
+  return !isNaN(n) && n >= 2 && n <= 20 && n % 2 === 0;
+}
+
+function isValidRows(val: string): boolean {
+  const n = parseInt(val, 10);
+  return !isNaN(n) && n >= 1 && n <= 100;
+}
+
 export default function App() {
   const [state, setState] = useState<BraceletState>(initialState);
   const [jsonInput, setJsonInput] = useState('');
+  const [strandsInput, setStrandsInput] = useState(() => String(initialState().numStrands));
+  const [rowsInput, setRowsInput] = useState(() => String(initialState().numRows));
+
+  // Sync draft inputs when state changes externally (e.g., after loading JSON)
+  useEffect(() => {
+    setStrandsInput(String(state.numStrands));
+  }, [state.numStrands]);
+
+  useEffect(() => {
+    setRowsInput(String(state.numRows));
+  }, [state.numRows]);
 
   const handleKnotClick = useCallback((row: number, col: number) => {
     setState(prev => {
@@ -100,6 +121,35 @@ export default function App() {
     });
   }, []);
 
+  const strandsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rowsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-apply valid strands value after 500ms
+  useEffect(() => {
+    if (!isValidStrands(strandsInput)) return;
+    if (strandsDebounceRef.current !== null) clearTimeout(strandsDebounceRef.current);
+    strandsDebounceRef.current = setTimeout(() => {
+      handleNumStrandsChange(parseInt(strandsInput, 10));
+      strandsDebounceRef.current = null;
+    }, 500);
+    return () => {
+      if (strandsDebounceRef.current !== null) clearTimeout(strandsDebounceRef.current);
+    };
+  }, [strandsInput, handleNumStrandsChange]);
+
+  // Auto-apply valid rows value after 500ms
+  useEffect(() => {
+    if (!isValidRows(rowsInput)) return;
+    if (rowsDebounceRef.current !== null) clearTimeout(rowsDebounceRef.current);
+    rowsDebounceRef.current = setTimeout(() => {
+      handleNumRowsChange(parseInt(rowsInput, 10));
+      rowsDebounceRef.current = null;
+    }, 500);
+    return () => {
+      if (rowsDebounceRef.current !== null) clearTimeout(rowsDebounceRef.current);
+    };
+  }, [rowsInput, handleNumRowsChange]);
+
   const handleCopyJSON = useCallback(() => {
     navigator.clipboard.writeText(stateToJSON(state));
   }, [state]);
@@ -148,8 +198,16 @@ export default function App() {
             min={2}
             max={20}
             step={2}
-            value={state.numStrands}
-            onChange={e => handleNumStrandsChange(parseInt(e.target.value) || 6)}
+            value={strandsInput}
+            className={isValidStrands(strandsInput) ? undefined : 'input-invalid'}
+            onChange={e => setStrandsInput(e.target.value)}
+            onBlur={() => {
+              if (isValidStrands(strandsInput)) {
+                handleNumStrandsChange(parseInt(strandsInput, 10));
+              } else {
+                setStrandsInput(String(state.numStrands));
+              }
+            }}
           />
         </label>
         <label>
@@ -158,8 +216,16 @@ export default function App() {
             type="number"
             min={1}
             max={100}
-            value={state.numRows}
-            onChange={e => handleNumRowsChange(parseInt(e.target.value) || 7)}
+            value={rowsInput}
+            className={isValidRows(rowsInput) ? undefined : 'input-invalid'}
+            onChange={e => setRowsInput(e.target.value)}
+            onBlur={() => {
+              if (isValidRows(rowsInput)) {
+                handleNumRowsChange(parseInt(rowsInput, 10));
+              } else {
+                setRowsInput(String(state.numRows));
+              }
+            }}
           />
         </label>
         <label>
