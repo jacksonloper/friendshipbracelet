@@ -94,6 +94,10 @@ h1 {
   border: 2px solid var(--fg);
   cursor: pointer;
   padding: 0;
+  overflow: hidden;
+  appearance: none;
+  -webkit-appearance: none;
+  background: none;
 }
 
 .knot-diagram {
@@ -137,53 +141,6 @@ h1 {
   height: 20px;
   transform: rotate(45deg);
   margin: -4px 2px;
-}
-
-.color-picker-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.color-picker-modal {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.hue-wheel {
-  position: relative;
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.lightness-square {
-  width: 200px;
-  height: 40px;
-  border-radius: 4px;
-  cursor: pointer;
-  border: 1px solid var(--border);
-}
-
-.color-preview {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  border: 2px solid var(--fg);
 }
 
 .json-area {
