@@ -51,35 +51,6 @@ export default function App() {
     setRowsInput(String(state.numRows));
   }, [state.numRows]);
 
-  const strandsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rowsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Auto-apply valid strands value after 500ms
-  useEffect(() => {
-    if (!isValidStrands(strandsInput)) return;
-    if (strandsDebounceRef.current !== null) clearTimeout(strandsDebounceRef.current);
-    strandsDebounceRef.current = setTimeout(() => {
-      handleNumStrandsChange(parseInt(strandsInput, 10));
-      strandsDebounceRef.current = null;
-    }, 500);
-    return () => {
-      if (strandsDebounceRef.current !== null) clearTimeout(strandsDebounceRef.current);
-    };
-  }, [strandsInput, handleNumStrandsChange]);
-
-  // Auto-apply valid rows value after 500ms
-  useEffect(() => {
-    if (!isValidRows(rowsInput)) return;
-    if (rowsDebounceRef.current !== null) clearTimeout(rowsDebounceRef.current);
-    rowsDebounceRef.current = setTimeout(() => {
-      handleNumRowsChange(parseInt(rowsInput, 10));
-      rowsDebounceRef.current = null;
-    }, 500);
-    return () => {
-      if (rowsDebounceRef.current !== null) clearTimeout(rowsDebounceRef.current);
-    };
-  }, [rowsInput, handleNumRowsChange]);
-
   const handleKnotClick = useCallback((row: number, col: number) => {
     setState(prev => {
       const newKnots = prev.knots.map(r => [...r]);
@@ -149,6 +120,35 @@ export default function App() {
       return { ...prev, numRows: n, knots };
     });
   }, []);
+
+  const strandsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rowsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-apply valid strands value after 500ms
+  useEffect(() => {
+    if (!isValidStrands(strandsInput)) return;
+    if (strandsDebounceRef.current !== null) clearTimeout(strandsDebounceRef.current);
+    strandsDebounceRef.current = setTimeout(() => {
+      handleNumStrandsChange(parseInt(strandsInput, 10));
+      strandsDebounceRef.current = null;
+    }, 500);
+    return () => {
+      if (strandsDebounceRef.current !== null) clearTimeout(strandsDebounceRef.current);
+    };
+  }, [strandsInput, handleNumStrandsChange]);
+
+  // Auto-apply valid rows value after 500ms
+  useEffect(() => {
+    if (!isValidRows(rowsInput)) return;
+    if (rowsDebounceRef.current !== null) clearTimeout(rowsDebounceRef.current);
+    rowsDebounceRef.current = setTimeout(() => {
+      handleNumRowsChange(parseInt(rowsInput, 10));
+      rowsDebounceRef.current = null;
+    }, 500);
+    return () => {
+      if (rowsDebounceRef.current !== null) clearTimeout(rowsDebounceRef.current);
+    };
+  }, [rowsInput, handleNumRowsChange]);
 
   const handleCopyJSON = useCallback(() => {
     navigator.clipboard.writeText(stateToJSON(state));
