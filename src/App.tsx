@@ -85,6 +85,15 @@ export default function App() {
         const nk = knotsInRow(prev.numStrands, row);
         if (row < prev.knots.length && prev.knots[row].length === nk) {
           knots.push([...prev.knots[row]]);
+        } else if (prev.lockPattern) {
+          // When lock is on, copy from the source row (row 0 for even, row 1 for odd)
+          const srcRow = row % 2 === 0 ? 0 : 1;
+          const srcKnots = prev.knots[srcRow];
+          if (srcKnots) {
+            knots.push(Array.from({ length: nk }, (_, k) => srcKnots[k] ?? 'FF'));
+          } else {
+            knots.push(Array(nk).fill('FF') as KnotType[]);
+          }
         } else {
           knots.push(Array(nk).fill('FF') as KnotType[]);
         }
