@@ -259,12 +259,14 @@ export default function KnotDiagram(props: KnotDiagramProps) {
                     style={{ cursor: "pointer" }}
                     onClick={() => props.onKnotClick(row, col)}
                   >
-                    {/* Filled circle - no stroke so strand color flows in */}
+                    {/* Filled circle with border matching strand outlines */}
                     <circle
                       cx={pos.x}
                       cy={pos.y}
                       r={KNOT_RADIUS}
                       fill={kColor()}
+                      stroke="var(--border-color)"
+                      stroke-width={OUTLINE_WIDTH}
                     />
                     {/* Arrow */}
                     <path
