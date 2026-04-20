@@ -133,15 +133,22 @@ export default function KnotDiagram(props: KnotDiagramProps) {
         const leftExitX = doesSwap ? strandX(rightIdx) : strandX(leftIdx);
         const rightExitX = doesSwap ? strandX(leftIdx) : strandX(rightIdx);
 
+        // Draw a strand half-segment. If `hasGap` is true, stop/start at circle boundary (passive strand).
+        // If `hasGap` is false, draw all the way to knot center (active strand - seamless with circle).
         const drawHalf = (
           fromX: number, fromY: number,
           toX: number, toY: number,
           color: string,
-          isEntry: boolean
+          isEntry: boolean,
+          hasGap: boolean
         ) => {
           if (isEntry) {
-            const oEnd = clipToward(fromX, fromY, kp.x, kp.y, OUTLINE_GAP);
-            const cEnd = clipToward(fromX, fromY, kp.x, kp.y, COLOR_GAP);
+            const oEnd = hasGap
+              ? clipToward(fromX, fromY, kp.x, kp.y, OUTLINE_GAP)
+              : { x: kp.x, y: kp.y };
+            const cEnd = hasGap
+              ? clipToward(fromX, fromY, kp.x, kp.y, COLOR_GAP)
+              : { x: kp.x, y: kp.y };
             elements.push(
               <line x1={fromX} y1={fromY} x2={oEnd.x} y2={oEnd.y}
                 stroke="var(--border-color)"
@@ -155,8 +162,12 @@ export default function KnotDiagram(props: KnotDiagramProps) {
                 stroke-linecap="butt" />
             );
           } else {
-            const oFrom = clipAway(kp.x, kp.y, toX, toY, OUTLINE_GAP);
-            const cFrom = clipAway(kp.x, kp.y, toX, toY, COLOR_GAP);
+            const oFrom = hasGap
+              ? clipAway(kp.x, kp.y, toX, toY, OUTLINE_GAP)
+              : { x: kp.x, y: kp.y };
+            const cFrom = hasGap
+              ? clipAway(kp.x, kp.y, toX, toY, COLOR_GAP)
+              : { x: kp.x, y: kp.y };
             elements.push(
               <line x1={oFrom.x} y1={oFrom.y} x2={toX} y2={toY}
                 stroke="var(--border-color)"
@@ -172,17 +183,19 @@ export default function KnotDiagram(props: KnotDiagramProps) {
           }
         };
 
-        const drawStrand = (entryX: number, exitX: number, color: string) => {
-          drawHalf(entryX, topY, 0, 0, color, true);
-          drawHalf(0, 0, exitX, bottomY, color, false);
+        // Active strand: no gap (flows into circle). Passive strand: has gap (2 openings).
+        const drawStrand = (entryX: number, exitX: number, color: string, isActive: boolean) => {
+          drawHalf(entryX, topY, 0, 0, color, true, !isActive);
+          drawHalf(0, 0, exitX, bottomY, color, false, !isActive);
         };
 
+        // Draw passive strand first (behind), then active strand (in front)
         if (isLeftActive) {
-          drawStrand(strandX(rightIdx), rightExitX, rightColor);
-          drawStrand(strandX(leftIdx), leftExitX, leftColor);
+          drawStrand(strandX(rightIdx), rightExitX, rightColor, false);
+          drawStrand(strandX(leftIdx), leftExitX, leftColor, true);
         } else {
-          drawStrand(strandX(leftIdx), leftExitX, leftColor);
-          drawStrand(strandX(rightIdx), rightExitX, rightColor);
+          drawStrand(strandX(leftIdx), leftExitX, leftColor, false);
+          drawStrand(strandX(rightIdx), rightExitX, rightColor, true);
         }
       }
 
