@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
   BraceletState,
   KnotType,
@@ -13,7 +13,6 @@ import {
 } from './braceletModel';
 import KnotDiagram from './KnotDiagram';
 import PatternDisplay from './PatternDisplay';
-import ColorPicker from './ColorPicker';
 
 function initialState(): BraceletState {
   const numStrands = 6;
@@ -29,7 +28,6 @@ function initialState(): BraceletState {
 
 export default function App() {
   const [state, setState] = useState<BraceletState>(initialState);
-  const [colorPickerIdx, setColorPickerIdx] = useState<number | null>(null);
   const [jsonInput, setJsonInput] = useState('');
 
   const handleKnotClick = useCallback((row: number, col: number) => {
@@ -186,12 +184,14 @@ export default function App() {
       {/* Strand color selectors */}
       <div className="strand-colors">
         {state.colors.map((color, idx) => (
-          <button
+          <input
             key={idx}
+            type="color"
+            value={color}
+            onChange={(e) => handleColorChange(idx, e.target.value)}
             className="strand-color-btn"
-            style={{ background: color }}
-            onClick={() => setColorPickerIdx(idx)}
             aria-label={`Change color of strand ${idx + 1}`}
+            title={`Strand ${idx + 1}`}
           />
         ))}
       </div>
@@ -205,15 +205,6 @@ export default function App() {
 
       {/* Pattern display */}
       <PatternDisplay pattern={pattern} />
-
-      {/* Color picker modal */}
-      {colorPickerIdx !== null && (
-        <ColorPicker
-          currentColor={state.colors[colorPickerIdx]}
-          onChange={(color) => handleColorChange(colorPickerIdx, color)}
-          onClose={() => setColorPickerIdx(null)}
-        />
-      )}
     </div>
   );
 }
