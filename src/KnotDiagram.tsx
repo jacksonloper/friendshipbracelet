@@ -1,4 +1,4 @@
-import { For } from "solid-js";
+import { For, createMemo } from "solid-js";
 import type { KnotType } from "./bracelet";
 import { knotsInRow, getKnotColor } from "./bracelet";
 
@@ -111,6 +111,105 @@ export default function KnotDiagram(props: KnotDiagramProps) {
   const svgWidth = () => PADDING_X * 2 + (props.numStrands - 1) * STRAND_SPACING;
   const svgHeight = () => PADDING_TOP * 2 + props.numRows * ROW_HEIGHT;
 
+  // Reactive memo that rebuilds strand SVG elements when strandColors or knots change
+  const strandElements = createMemo(() => {
+    const elements: any[] = [];
+    for (let row = 0; row < props.numRows; row++) {
+      const offset = row % 2 === 0 ? 0 : 1;
+      const nk = knotsInRow(row, props.numStrands);
+      const topY = rowTopY(row);
+      const bottomY = rowTopY(row + 1);
+
+      for (let k = 0; k < nk; k++) {
+        const leftIdx = offset + k * 2;
+        const rightIdx = leftIdx + 1;
+        const kp = knotCenter(row, k);
+        const knotType = props.knots[row]?.[k] ?? "FF";
+        const leftColor = props.strandColors[row]?.[leftIdx] ?? "#888";
+        const rightColor = props.strandColors[row]?.[rightIdx] ?? "#888";
+        const activeColor = getKnotColor(knotType, leftColor, rightColor);
+        const isLeftActive = activeColor === leftColor;
+        const doesSwap = knotType === "FF" || knotType === "BB";
+        const leftExitX = doesSwap ? strandX(rightIdx) : strandX(leftIdx);
+        const rightExitX = doesSwap ? strandX(leftIdx) : strandX(rightIdx);
+
+        const drawHalf = (
+          fromX: number, fromY: number,
+          toX: number, toY: number,
+          color: string,
+          isEntry: boolean
+        ) => {
+          if (isEntry) {
+            const oEnd = clipToward(fromX, fromY, kp.x, kp.y, OUTLINE_GAP);
+            const cEnd = clipToward(fromX, fromY, kp.x, kp.y, COLOR_GAP);
+            elements.push(
+              <line x1={fromX} y1={fromY} x2={oEnd.x} y2={oEnd.y}
+                stroke="var(--border-color)"
+                stroke-width={STRAND_WIDTH + OUTLINE_WIDTH * 2}
+                stroke-linecap="butt" />
+            );
+            elements.push(
+              <line x1={fromX} y1={fromY} x2={cEnd.x} y2={cEnd.y}
+                stroke={color}
+                stroke-width={STRAND_WIDTH}
+                stroke-linecap="butt" />
+            );
+          } else {
+            const oFrom = clipAway(kp.x, kp.y, toX, toY, OUTLINE_GAP);
+            const cFrom = clipAway(kp.x, kp.y, toX, toY, COLOR_GAP);
+            elements.push(
+              <line x1={oFrom.x} y1={oFrom.y} x2={toX} y2={toY}
+                stroke="var(--border-color)"
+                stroke-width={STRAND_WIDTH + OUTLINE_WIDTH * 2}
+                stroke-linecap="butt" />
+            );
+            elements.push(
+              <line x1={cFrom.x} y1={cFrom.y} x2={toX} y2={toY}
+                stroke={color}
+                stroke-width={STRAND_WIDTH}
+                stroke-linecap="butt" />
+            );
+          }
+        };
+
+        const drawStrand = (entryX: number, exitX: number, color: string) => {
+          drawHalf(entryX, topY, 0, 0, color, true);
+          drawHalf(0, 0, exitX, bottomY, color, false);
+        };
+
+        if (isLeftActive) {
+          drawStrand(strandX(rightIdx), rightExitX, rightColor);
+          drawStrand(strandX(leftIdx), leftExitX, leftColor);
+        } else {
+          drawStrand(strandX(leftIdx), leftExitX, leftColor);
+          drawStrand(strandX(rightIdx), rightExitX, rightColor);
+        }
+      }
+
+      // Edge strands (offset rows)
+      if (offset === 1) {
+        const drawEdge = (idx: number) => {
+          const x = strandX(idx);
+          const color = props.strandColors[row]?.[idx] ?? "#888";
+          elements.push(
+            <line x1={x} y1={topY} x2={x} y2={bottomY}
+              stroke="var(--border-color)"
+              stroke-width={STRAND_WIDTH + OUTLINE_WIDTH * 2}
+              stroke-linecap="butt" />
+          );
+          elements.push(
+            <line x1={x} y1={topY} x2={x} y2={bottomY}
+              stroke={color} stroke-width={STRAND_WIDTH}
+              stroke-linecap="butt" />
+          );
+        };
+        drawEdge(0);
+        drawEdge(props.numStrands - 1);
+      }
+    }
+    return elements;
+  });
+
   return (
     <svg
       width="100%"
@@ -121,120 +220,8 @@ export default function KnotDiagram(props: KnotDiagramProps) {
         margin: "0 auto",
       }}
     >
-      {/* Layer 1: All strand OUTLINES (behind strand, then top strand) */}
-      <For each={Array.from({ length: props.numRows })}>
-        {(_, rowIdx) => {
-          const row = rowIdx();
-          const offset = row % 2 === 0 ? 0 : 1;
-          const nk = knotsInRow(row, props.numStrands);
-          const elements: any[] = [];
-          const topY = rowTopY(row);
-          const bottomY = rowTopY(row + 1);
-
-          for (let k = 0; k < nk; k++) {
-            const leftIdx = offset + k * 2;
-            const rightIdx = leftIdx + 1;
-            const kp = knotCenter(row, k);
-            const knotType = props.knots[row]?.[k] ?? "FF";
-            const leftColor = props.strandColors[row]?.[leftIdx] ?? "#888";
-            const rightColor = props.strandColors[row]?.[rightIdx] ?? "#888";
-            const activeColor = getKnotColor(knotType, leftColor, rightColor);
-            const isLeftActive = activeColor === leftColor;
-            const doesSwap = knotType === "FF" || knotType === "BB";
-            const leftExitX = doesSwap ? strandX(rightIdx) : strandX(leftIdx);
-            const rightExitX = doesSwap ? strandX(leftIdx) : strandX(rightIdx);
-
-            // Draw outline then color for each strand half-segment
-            // Outline stops at OUTLINE_GAP from knot center
-            // Color stops at COLOR_GAP from knot center (extends further into circle)
-            const drawHalf = (
-              fromX: number, fromY: number,
-              toX: number, toY: number,
-              color: string,
-              isEntry: boolean
-            ) => {
-              let oEnd: { x: number; y: number };
-              let cEnd: { x: number; y: number };
-              if (isEntry) {
-                oEnd = clipToward(fromX, fromY, kp.x, kp.y, OUTLINE_GAP);
-                cEnd = clipToward(fromX, fromY, kp.x, kp.y, COLOR_GAP);
-              } else {
-                oEnd = { x: toX, y: toY };
-                cEnd = { x: toX, y: toY };
-                fromX = clipAway(kp.x, kp.y, toX, toY, OUTLINE_GAP).x;
-                fromY = clipAway(kp.x, kp.y, toX, toY, OUTLINE_GAP).y;
-                const cFrom = clipAway(kp.x, kp.y, toX, toY, COLOR_GAP);
-                // Draw outline from outline gap point
-                elements.push(
-                  <line x1={fromX} y1={fromY} x2={oEnd.x} y2={oEnd.y}
-                    stroke="var(--border-color)"
-                    stroke-width={STRAND_WIDTH + OUTLINE_WIDTH * 2}
-                    stroke-linecap="butt" />
-                );
-                // Draw color from color gap point (extends further into circle)
-                elements.push(
-                  <line x1={cFrom.x} y1={cFrom.y} x2={cEnd.x} y2={cEnd.y}
-                    stroke={color}
-                    stroke-width={STRAND_WIDTH}
-                    stroke-linecap="butt" />
-                );
-                return;
-              }
-
-              // Entry segment
-              elements.push(
-                <line x1={fromX} y1={fromY} x2={oEnd.x} y2={oEnd.y}
-                  stroke="var(--border-color)"
-                  stroke-width={STRAND_WIDTH + OUTLINE_WIDTH * 2}
-                  stroke-linecap="butt" />
-              );
-              elements.push(
-                <line x1={fromX} y1={fromY} x2={cEnd.x} y2={cEnd.y}
-                  stroke={color}
-                  stroke-width={STRAND_WIDTH}
-                  stroke-linecap="butt" />
-              );
-            };
-
-            // Draw behind strand first, then active strand
-            const drawStrand = (entryX: number, exitX: number, color: string) => {
-              drawHalf(entryX, topY, 0, 0, color, true);
-              drawHalf(0, 0, exitX, bottomY, color, false);
-            };
-
-            if (isLeftActive) {
-              drawStrand(strandX(rightIdx), rightExitX, rightColor);
-              drawStrand(strandX(leftIdx), leftExitX, leftColor);
-            } else {
-              drawStrand(strandX(leftIdx), leftExitX, leftColor);
-              drawStrand(strandX(rightIdx), rightExitX, rightColor);
-            }
-          }
-
-          // Edge strands (offset rows)
-          if (offset === 1) {
-            const drawEdge = (idx: number) => {
-              const x = strandX(idx);
-              const color = props.strandColors[row]?.[idx] ?? "#888";
-              elements.push(
-                <line x1={x} y1={topY} x2={x} y2={bottomY}
-                  stroke="var(--border-color)"
-                  stroke-width={STRAND_WIDTH + OUTLINE_WIDTH * 2}
-                  stroke-linecap="butt" />
-              );
-              elements.push(
-                <line x1={x} y1={topY} x2={x} y2={bottomY}
-                  stroke={color} stroke-width={STRAND_WIDTH}
-                  stroke-linecap="butt" />
-              );
-            };
-            drawEdge(0);
-            drawEdge(props.numStrands - 1);
-          }
-
-          return <>{elements}</>;
-        }}
-      </For>
+      {/* Layer 1: Strand segments (reactive via createMemo) */}
+      {strandElements()}
 
       {/* Layer 2: Knot circles (no border - the outline gap creates the connection effect) */}
       <For each={Array.from({ length: props.numRows })}>
