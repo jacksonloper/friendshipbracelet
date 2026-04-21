@@ -10,6 +10,7 @@ import {
   computePattern,
   stateToJSON,
   stateFromJSON,
+  presents,
 } from './braceletModel';
 import KnotDiagram from './KnotDiagram';
 import PatternDisplay from './PatternDisplay';
@@ -192,6 +193,21 @@ export default function App() {
             onChange={e => setJsonInput(e.target.value)}
           />
           <button onClick={handleLoadJSON}>Load</button>
+        </div>
+        <div className="presents-area">
+          <select
+            defaultValue=""
+            onChange={e => {
+              const found = presents.find(p => p.name === e.target.value);
+              if (found) setState(found.state);
+              e.target.value = '';
+            }}
+          >
+            <option value="" disabled>Load preset…</option>
+            {presents.map(p => (
+              <option key={p.name} value={p.name}>{p.name}</option>
+            ))}
+          </select>
         </div>
       </div>
 
