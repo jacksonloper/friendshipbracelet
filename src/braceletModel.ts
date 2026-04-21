@@ -149,6 +149,35 @@ export function computePattern(state: BraceletState): string[][] {
   return pattern;
 }
 
+// Named preset bracelets ("presents")
+export interface Present {
+  name: string;
+  state: BraceletState;
+}
+
+export const presents: Present[] = [
+  {
+    name: 'H',
+    state: {
+      numStrands: 12,
+      numRows: 9,
+      colors: ['#ff0000','#0000ff','#ff0000','#0000ff','#ff0000','#ff0000','#0000ff','#ff0000','#ff0000','#ff0000','#ff0000','#ff0000'],
+      knots: [
+        ['FB','FB','FF','BF','BF','FF'],
+        ['BB','BF','FB','FF','FF'],
+        ['FF','BB','FF','BF','FF','FF'],
+        ['FF','FF','FF','FF','FF'],
+        ['BF','BB','FF','FF','FF','FF'],
+        ['FF','BB','FF','FF','FF'],
+        ['FF','BB','FF','FF','FF','FF'],
+        ['FF','FF','FF','BB','FF'],
+        ['FF','BB','FB','FF','BB','FF'],
+      ] as KnotType[][],
+      lockPattern: false,
+    },
+  },
+];
+
 // Export state to JSON
 export function stateToJSON(state: BraceletState): string {
   return JSON.stringify({
