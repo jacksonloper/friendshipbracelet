@@ -160,8 +160,8 @@ export function computeLongestUnwovenStretches(state: BraceletState): number[] {
         continue;
       }
 
-      const continuesStretch = lastRoles[strand] === role && lastDirections[strand] === direction;
-      currentStretches[strand] = continuesStretch ? currentStretches[strand] + 1 : 1;
+      const continueStretch = lastRoles[strand] === role && lastDirections[strand] === direction;
+      currentStretches[strand] = continueStretch ? currentStretches[strand] + 1 : 1;
       lastRoles[strand] = role;
       lastDirections[strand] = direction;
       longestStretches[strand] = Math.max(longestStretches[strand], currentStretches[strand]);
