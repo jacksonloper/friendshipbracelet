@@ -113,36 +113,36 @@ function getBackViewKnotType(knotType: KnotType): KnotType {
 }
 
 function getPatternArrowPath(knotType: KnotType, cx: number, cy: number, r: number): string {
-  const hs = r * 0.35;
+  const arrowHeadSize = r * 0.35;
 
   switch (knotType) {
     case 'FF': {
       const x1 = cx - r * 0.7;
       const x2 = cx + r * 0.7;
-      return `M ${x1} ${cy} L ${x2} ${cy} M ${x2 - hs} ${cy - hs} L ${x2} ${cy} L ${x2 - hs} ${cy + hs}`;
+      return `M ${x1} ${cy} L ${x2} ${cy} M ${x2 - arrowHeadSize} ${cy - arrowHeadSize} L ${x2} ${cy} L ${x2 - arrowHeadSize} ${cy + arrowHeadSize}`;
     }
     case 'BB': {
       const x1 = cx + r * 0.7;
       const x2 = cx - r * 0.7;
-      return `M ${x1} ${cy} L ${x2} ${cy} M ${x2 + hs} ${cy - hs} L ${x2} ${cy} L ${x2 + hs} ${cy + hs}`;
+      return `M ${x1} ${cy} L ${x2} ${cy} M ${x2 + arrowHeadSize} ${cy - arrowHeadSize} L ${x2} ${cy} L ${x2 + arrowHeadSize} ${cy + arrowHeadSize}`;
     }
     case 'FB': {
       const y1 = cy - r * 0.35;
       const y2 = cy + r * 0.35;
       const xl = cx - r * 0.55;
       const xr = cx + r * 0.55;
-      const hs2 = hs * 0.7;
-      return `M ${xl} ${y1} L ${xr} ${y1} M ${xr - hs2} ${y1 - hs2} L ${xr} ${y1} L ${xr - hs2} ${y1 + hs2}` +
-        ` M ${xr} ${y2} L ${xl} ${y2} M ${xl + hs2} ${y2 - hs2} L ${xl} ${y2} L ${xl + hs2} ${y2 + hs2}`;
+      const secondaryHeadSize = arrowHeadSize * 0.7;
+      return `M ${xl} ${y1} L ${xr} ${y1} M ${xr - secondaryHeadSize} ${y1 - secondaryHeadSize} L ${xr} ${y1} L ${xr - secondaryHeadSize} ${y1 + secondaryHeadSize}` +
+        ` M ${xr} ${y2} L ${xl} ${y2} M ${xl + secondaryHeadSize} ${y2 - secondaryHeadSize} L ${xl} ${y2} L ${xl + secondaryHeadSize} ${y2 + secondaryHeadSize}`;
     }
     case 'BF': {
       const y1 = cy - r * 0.35;
       const y2 = cy + r * 0.35;
       const xl = cx - r * 0.55;
       const xr = cx + r * 0.55;
-      const hs2 = hs * 0.7;
-      return `M ${xr} ${y1} L ${xl} ${y1} M ${xl + hs2} ${y1 - hs2} L ${xl} ${y1} L ${xl + hs2} ${y1 + hs2}` +
-        ` M ${xl} ${y2} L ${xr} ${y2} M ${xr - hs2} ${y2 - hs2} L ${xr} ${y2} L ${xr - hs2} ${y2 + hs2}`;
+      const secondaryHeadSize = arrowHeadSize * 0.7;
+      return `M ${xr} ${y1} L ${xl} ${y1} M ${xl + secondaryHeadSize} ${y1 - secondaryHeadSize} L ${xl} ${y1} L ${xl + secondaryHeadSize} ${y1 + secondaryHeadSize}` +
+        ` M ${xl} ${y2} L ${xr} ${y2} M ${xr - secondaryHeadSize} ${y2 - secondaryHeadSize} L ${xr} ${y2} L ${xr - secondaryHeadSize} ${y2 + secondaryHeadSize}`;
     }
   }
 }

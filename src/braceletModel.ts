@@ -108,8 +108,8 @@ export function getOverStrand(knotType: KnotType): 'left' | 'right' {
 export function computeLongestUnwovenStretches(state: BraceletState): number[] {
   const { numStrands, numRows, knots } = state;
   const currentOrder = Array.from({ length: numStrands }, (_, i) => i);
-  const bestRuns = Array(numStrands).fill(0);
-  const currentRuns = Array(numStrands).fill(0);
+  const longestStretches = Array(numStrands).fill(0);
+  const currentStretches = Array(numStrands).fill(0);
   const lastRoles = Array<'over' | 'under' | null>(numStrands).fill(null);
 
   for (let row = 0; row < numRows; row++) {
@@ -143,18 +143,18 @@ export function computeLongestUnwovenStretches(state: BraceletState): number[] {
     for (let strand = 0; strand < numStrands; strand++) {
       const role = rowRoles[strand];
       if (role === null) {
-        currentRuns[strand] = 0;
+        currentStretches[strand] = 0;
         lastRoles[strand] = null;
         continue;
       }
 
-      currentRuns[strand] = lastRoles[strand] === role ? currentRuns[strand] + 1 : 1;
+      currentStretches[strand] = lastRoles[strand] === role ? currentStretches[strand] + 1 : 1;
       lastRoles[strand] = role;
-      bestRuns[strand] = Math.max(bestRuns[strand], currentRuns[strand]);
+      longestStretches[strand] = Math.max(longestStretches[strand], currentStretches[strand]);
     }
   }
 
-  return bestRuns;
+  return longestStretches;
 }
 
 // Cycle knot type
