@@ -8,6 +8,7 @@ import {
   defaultColors,
   computeStrandOrder,
   computePattern,
+  computeLongestUnwovenStretches,
   stateToJSON,
   stateFromJSON,
   presents,
@@ -174,6 +175,8 @@ export default function App() {
 
   const strandOrder = computeStrandOrder(state);
   const pattern = computePattern(state);
+  const backPattern = computePattern(state, true);
+  const longestUnwovenStretches = computeLongestUnwovenStretches(state);
 
   return (
     <div>
@@ -274,7 +277,28 @@ export default function App() {
       />
 
       {/* Pattern display */}
-      <PatternDisplay pattern={pattern} />
+      <PatternDisplay
+        pattern={pattern}
+        backPattern={backPattern}
+        knots={state.knots}
+        numStrands={state.numStrands}
+      />
+
+      <div className="strand-stats">
+        <h3>Longest unwoven stretch</h3>
+        <div className="strand-stats-grid">
+          {longestUnwovenStretches.map((stretch, idx) => (
+            <div key={idx} className="strand-stat">
+              <span
+                className="strand-stat-swatch"
+                style={{ backgroundColor: state.colors[idx] }}
+                aria-hidden="true"
+              />
+              <span>Strand {idx + 1}: {stretch}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
