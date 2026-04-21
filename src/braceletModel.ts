@@ -105,6 +105,58 @@ export function getOverStrand(knotType: KnotType): 'left' | 'right' {
   }
 }
 
+export function computeLongestUnwovenStretches(state: BraceletState): number[] {
+  const { numStrands, numRows, knots } = state;
+  const currentOrder = Array.from({ length: numStrands }, (_, i) => i);
+  const bestRuns = Array(numStrands).fill(0);
+  const currentRuns = Array(numStrands).fill(0);
+  const lastRoles = Array<'over' | 'under' | null>(numStrands).fill(null);
+
+  for (let row = 0; row < numRows; row++) {
+    const nk = knotsInRow(numStrands, row);
+    const offset = row % 2 === 0 ? 0 : 1;
+    const rowRoles = Array<'over' | 'under' | null>(numStrands).fill(null);
+
+    for (let k = 0; k < nk; k++) {
+      const leftIdx = offset + k * 2;
+      const rightIdx = leftIdx + 1;
+      const knotType = knots[row]?.[k] ?? 'FF';
+      const leftStrand = currentOrder[leftIdx];
+      const rightStrand = currentOrder[rightIdx];
+      const overStrand = getOverStrand(knotType);
+
+      if (overStrand === 'left') {
+        rowRoles[leftStrand] = 'over';
+        rowRoles[rightStrand] = 'under';
+      } else {
+        rowRoles[leftStrand] = 'under';
+        rowRoles[rightStrand] = 'over';
+      }
+
+      if (knotType === 'FF' || knotType === 'BB') {
+        const temp = currentOrder[leftIdx];
+        currentOrder[leftIdx] = currentOrder[rightIdx];
+        currentOrder[rightIdx] = temp;
+      }
+    }
+
+    for (let strand = 0; strand < numStrands; strand++) {
+      const role = rowRoles[strand];
+      if (role === null) {
+        currentRuns[strand] = 0;
+        lastRoles[strand] = null;
+        continue;
+      }
+
+      currentRuns[strand] = lastRoles[strand] === role ? currentRuns[strand] + 1 : 1;
+      lastRoles[strand] = role;
+      bestRuns[strand] = Math.max(bestRuns[strand], currentRuns[strand]);
+    }
+  }
+
+  return bestRuns;
+}
+
 // Cycle knot type
 const knotCycle: KnotType[] = ['FF', 'BB', 'FB', 'BF'];
 export function cycleKnot(current: KnotType): KnotType {
@@ -203,6 +255,39 @@ export const presents: Present[] = [
         ['FF','FF','FF','FB'],
         ['FF','FF','FF'],
         ['FB','FF','FF','FF'],
+        ['BB','FF','BB'],
+      ] as KnotType[][],
+      lockPattern: false,
+    },
+  },
+  {
+    name: 'H (alt)',
+    state: {
+      numStrands: 8,
+      numRows: 22,
+      colors: ['#ff0000','#0000ff','#ff0000','#0000ff','#ff0000','#ff0000','#0000ff','#ff0000'],
+      knots: [
+        ['FB','FB','FF','BF'],
+        ['BB','BF','FB'],
+        ['FF','BB','BB','BF'],
+        ['FF','FF','FF'],
+        ['BF','BB','FB','FF'],
+        ['FF','BB','FF'],
+        ['FF','BB','FB','FB'],
+        ['FF','FF','FF'],
+        ['FB','BB','FB','FF'],
+        ['BB','FB','BB'],
+        ['FF','BF','BF','BF'],
+        ['FF','FB','FB'],
+        ['FB','BB','BF','BF'],
+        ['BB','FF','FB'],
+        ['FF','FB','BB','BF'],
+        ['FF','FF','FF'],
+        ['BF','FF','FB','BB'],
+        ['FF','BB','FF'],
+        ['FF','FF','BB','FB'],
+        ['FF','FF','FF'],
+        ['FB','FB','FF','FF'],
         ['BB','FF','BB'],
       ] as KnotType[][],
       lockPattern: false,
