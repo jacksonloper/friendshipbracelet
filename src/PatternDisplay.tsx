@@ -8,6 +8,13 @@ interface PatternDisplayProps {
   numStrands: number;
 }
 
+const BACK_ARROW_RADIUS_RATIO = 0.8;
+const ARROW_HEAD_SIZE_RATIO = 0.35;
+const ARROW_SHAFT_LENGTH_RATIO = 0.7;
+const DOUBLE_ARROW_OFFSET_RATIO = 0.35;
+const DOUBLE_ARROW_SPAN_RATIO = 0.55;
+const SECONDARY_HEAD_SIZE_RATIO = 0.7;
+
 export default function PatternDisplay({ pattern, backPattern, knots, numStrands }: PatternDisplayProps) {
   const [showBack, setShowBack] = useState(false);
   const visiblePattern = showBack ? backPattern : pattern;
@@ -51,7 +58,9 @@ export default function PatternDisplay({ pattern, backPattern, knots, numStrands
             // Diamond shape (square rotated 45 degrees)
             const points = `${cx},${cy - half} ${cx + half},${cy} ${cx},${cy + half} ${cx - half},${cy}`;
             const knotType = getPatternCellKnotType(rowIdx, colIdx, row.length, numStrands, knots);
-            const backOverlay = showBack && knotType ? getPatternArrowPath(getBackViewKnotType(knotType), cx, cy, half * 0.8) : null;
+            const backOverlay = showBack && knotType
+              ? getPatternArrowPath(getBackViewKnotType(knotType), cx, cy, half * BACK_ARROW_RADIUS_RATIO)
+              : null;
 
             return (
               <g key={`${rowIdx}-${colIdx}`}>
@@ -113,34 +122,34 @@ function getBackViewKnotType(knotType: KnotType): KnotType {
 }
 
 function getPatternArrowPath(knotType: KnotType, cx: number, cy: number, r: number): string {
-  const arrowHeadSize = r * 0.35;
+  const arrowHeadSize = r * ARROW_HEAD_SIZE_RATIO;
 
   switch (knotType) {
     case 'FF': {
-      const x1 = cx - r * 0.7;
-      const x2 = cx + r * 0.7;
+      const x1 = cx - r * ARROW_SHAFT_LENGTH_RATIO;
+      const x2 = cx + r * ARROW_SHAFT_LENGTH_RATIO;
       return `M ${x1} ${cy} L ${x2} ${cy} M ${x2 - arrowHeadSize} ${cy - arrowHeadSize} L ${x2} ${cy} L ${x2 - arrowHeadSize} ${cy + arrowHeadSize}`;
     }
     case 'BB': {
-      const x1 = cx + r * 0.7;
-      const x2 = cx - r * 0.7;
+      const x1 = cx + r * ARROW_SHAFT_LENGTH_RATIO;
+      const x2 = cx - r * ARROW_SHAFT_LENGTH_RATIO;
       return `M ${x1} ${cy} L ${x2} ${cy} M ${x2 + arrowHeadSize} ${cy - arrowHeadSize} L ${x2} ${cy} L ${x2 + arrowHeadSize} ${cy + arrowHeadSize}`;
     }
     case 'FB': {
-      const y1 = cy - r * 0.35;
-      const y2 = cy + r * 0.35;
-      const xl = cx - r * 0.55;
-      const xr = cx + r * 0.55;
-      const secondaryHeadSize = arrowHeadSize * 0.7;
+      const y1 = cy - r * DOUBLE_ARROW_OFFSET_RATIO;
+      const y2 = cy + r * DOUBLE_ARROW_OFFSET_RATIO;
+      const xl = cx - r * DOUBLE_ARROW_SPAN_RATIO;
+      const xr = cx + r * DOUBLE_ARROW_SPAN_RATIO;
+      const secondaryHeadSize = arrowHeadSize * SECONDARY_HEAD_SIZE_RATIO;
       return `M ${xl} ${y1} L ${xr} ${y1} M ${xr - secondaryHeadSize} ${y1 - secondaryHeadSize} L ${xr} ${y1} L ${xr - secondaryHeadSize} ${y1 + secondaryHeadSize}` +
         ` M ${xr} ${y2} L ${xl} ${y2} M ${xl + secondaryHeadSize} ${y2 - secondaryHeadSize} L ${xl} ${y2} L ${xl + secondaryHeadSize} ${y2 + secondaryHeadSize}`;
     }
     case 'BF': {
-      const y1 = cy - r * 0.35;
-      const y2 = cy + r * 0.35;
-      const xl = cx - r * 0.55;
-      const xr = cx + r * 0.55;
-      const secondaryHeadSize = arrowHeadSize * 0.7;
+      const y1 = cy - r * DOUBLE_ARROW_OFFSET_RATIO;
+      const y2 = cy + r * DOUBLE_ARROW_OFFSET_RATIO;
+      const xl = cx - r * DOUBLE_ARROW_SPAN_RATIO;
+      const xr = cx + r * DOUBLE_ARROW_SPAN_RATIO;
+      const secondaryHeadSize = arrowHeadSize * SECONDARY_HEAD_SIZE_RATIO;
       return `M ${xr} ${y1} L ${xl} ${y1} M ${xl + secondaryHeadSize} ${y1 - secondaryHeadSize} L ${xl} ${y1} L ${xl + secondaryHeadSize} ${y1 + secondaryHeadSize}` +
         ` M ${xl} ${y2} L ${xr} ${y2} M ${xr - secondaryHeadSize} ${y2 - secondaryHeadSize} L ${xr} ${y2} L ${xr - secondaryHeadSize} ${y2 + secondaryHeadSize}`;
     }
