@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   BraceletState,
   KnotType,
@@ -14,6 +14,16 @@ import {
 import KnotDiagram from './KnotDiagram';
 import PatternDisplay from './PatternDisplay';
 
+function isValidStrands(val: string): boolean {
+  const n = parseInt(val, 10);
+  return !isNaN(n) && n >= 2 && n <= 20 && n % 2 === 0;
+}
+
+function isValidRows(val: string): boolean {
+  const n = parseInt(val, 10);
+  return !isNaN(n) && n >= 1 && n <= 100;
+}
+
 function initialState(): BraceletState {
   const numStrands = 6;
   const numRows = 7;
@@ -26,30 +36,12 @@ function initialState(): BraceletState {
   };
 }
 
-function isValidStrands(val: string): boolean {
-  const n = parseInt(val, 10);
-  return !isNaN(n) && n >= 2 && n <= 20 && n % 2 === 0;
-}
-
-function isValidRows(val: string): boolean {
-  const n = parseInt(val, 10);
-  return !isNaN(n) && n >= 1 && n <= 100;
-}
-
 export default function App() {
   const [state, setState] = useState<BraceletState>(initialState);
   const [jsonInput, setJsonInput] = useState('');
-  const [strandsInput, setStrandsInput] = useState(() => String(initialState().numStrands));
-  const [rowsInput, setRowsInput] = useState(() => String(initialState().numRows));
-
-  // Sync draft inputs when state changes externally (e.g., after loading JSON)
-  useEffect(() => {
-    setStrandsInput(String(state.numStrands));
-  }, [state.numStrands]);
-
-  useEffect(() => {
-    setRowsInput(String(state.numRows));
-  }, [state.numRows]);
+  const [dialogType, setDialogType] = useState<'strands' | 'rows' | null>(null);
+  const [dialogValue, setDialogValue] = useState('');
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
 
   const handleKnotClick = useCallback((row: number, col: number) => {
     setState(prev => {
@@ -121,34 +113,25 @@ export default function App() {
     });
   }, []);
 
-  const strandsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rowsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openDialog = useCallback((type: 'strands' | 'rows') => {
+    setDialogType(type);
+    setDialogValue(type === 'strands' ? String(state.numStrands) : String(state.numRows));
+    dialogRef.current?.showModal();
+  }, [state.numStrands, state.numRows]);
 
-  // Auto-apply valid strands value after 500ms
-  useEffect(() => {
-    if (!isValidStrands(strandsInput)) return;
-    if (strandsDebounceRef.current !== null) clearTimeout(strandsDebounceRef.current);
-    strandsDebounceRef.current = setTimeout(() => {
-      handleNumStrandsChange(parseInt(strandsInput, 10));
-      strandsDebounceRef.current = null;
-    }, 500);
-    return () => {
-      if (strandsDebounceRef.current !== null) clearTimeout(strandsDebounceRef.current);
-    };
-  }, [strandsInput, handleNumStrandsChange]);
+  const closeDialog = useCallback(() => {
+    dialogRef.current?.close();
+    setDialogType(null);
+  }, []);
 
-  // Auto-apply valid rows value after 500ms
-  useEffect(() => {
-    if (!isValidRows(rowsInput)) return;
-    if (rowsDebounceRef.current !== null) clearTimeout(rowsDebounceRef.current);
-    rowsDebounceRef.current = setTimeout(() => {
-      handleNumRowsChange(parseInt(rowsInput, 10));
-      rowsDebounceRef.current = null;
-    }, 500);
-    return () => {
-      if (rowsDebounceRef.current !== null) clearTimeout(rowsDebounceRef.current);
-    };
-  }, [rowsInput, handleNumRowsChange]);
+  const confirmDialog = useCallback(() => {
+    if (dialogType === 'strands' && isValidStrands(dialogValue)) {
+      handleNumStrandsChange(parseInt(dialogValue, 10));
+    } else if (dialogType === 'rows' && isValidRows(dialogValue)) {
+      handleNumRowsChange(parseInt(dialogValue, 10));
+    }
+    closeDialog();
+  }, [dialogType, dialogValue, handleNumStrandsChange, handleNumRowsChange, closeDialog]);
 
   const handleCopyJSON = useCallback(() => {
     navigator.clipboard.writeText(stateToJSON(state));
@@ -191,43 +174,8 @@ export default function App() {
 
       {/* Controls */}
       <div className="controls">
-        <label>
-          Strands:
-          <input
-            type="number"
-            min={2}
-            max={20}
-            step={2}
-            value={strandsInput}
-            className={isValidStrands(strandsInput) ? undefined : 'input-invalid'}
-            onChange={e => setStrandsInput(e.target.value)}
-            onBlur={() => {
-              if (isValidStrands(strandsInput)) {
-                handleNumStrandsChange(parseInt(strandsInput, 10));
-              } else {
-                setStrandsInput(String(state.numStrands));
-              }
-            }}
-          />
-        </label>
-        <label>
-          Rows:
-          <input
-            type="number"
-            min={1}
-            max={100}
-            value={rowsInput}
-            className={isValidRows(rowsInput) ? undefined : 'input-invalid'}
-            onChange={e => setRowsInput(e.target.value)}
-            onBlur={() => {
-              if (isValidRows(rowsInput)) {
-                handleNumRowsChange(parseInt(rowsInput, 10));
-              } else {
-                setRowsInput(String(state.numRows));
-              }
-            }}
-          />
-        </label>
+        <button onClick={() => openDialog('strands')}>Strands: {state.numStrands}</button>
+        <button onClick={() => openDialog('rows')}>Rows: {state.numRows}</button>
         <label>
           <input
             type="checkbox"
@@ -246,6 +194,40 @@ export default function App() {
           <button onClick={handleLoadJSON}>Load</button>
         </div>
       </div>
+
+      {/* Strand/row edit dialog */}
+      <dialog
+        ref={dialogRef}
+        className="edit-dialog"
+        onClose={closeDialog}
+      >
+        <form
+          onSubmit={e => {
+            e.preventDefault();
+            confirmDialog();
+          }}
+        >
+          <p className="edit-dialog-label">
+            {dialogType === 'strands'
+              ? 'Number of strands (even, 2–20):'
+              : 'Number of rows (1–100):'}
+          </p>
+          <input
+            className="edit-dialog-input"
+            type="number"
+            value={dialogValue}
+            min={dialogType === 'strands' ? 2 : 1}
+            max={dialogType === 'strands' ? 20 : 100}
+            step={dialogType === 'strands' ? 2 : 1}
+            autoFocus
+            onChange={e => setDialogValue(e.target.value)}
+          />
+          <div className="edit-dialog-buttons">
+            <button type="submit">OK</button>
+            <button type="button" onClick={closeDialog}>Cancel</button>
+          </div>
+        </form>
+      </dialog>
 
       {/* Strand color selectors */}
       <div className="strand-colors">
