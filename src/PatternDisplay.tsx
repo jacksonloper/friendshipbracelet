@@ -8,6 +8,7 @@ interface PatternDisplayProps {
   numStrands: number;
 }
 
+// Visual proportions for back-view directional arrows, relative to the arrow radius.
 const BACK_ARROW_RADIUS_RATIO = 0.8;
 const ARROW_HEAD_SIZE_RATIO = 0.35;
 const ARROW_SHAFT_LENGTH_RATIO = 0.7;
