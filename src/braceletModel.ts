@@ -78,6 +78,21 @@ export function getKnotTopColor(
   }
 }
 
+export function getKnotBottomColor(
+  knotType: KnotType,
+  leftStrandColor: string,
+  rightStrandColor: string
+): string {
+  switch (knotType) {
+    case 'FF':
+    case 'FB':
+      return rightStrandColor;
+    case 'BB':
+    case 'BF':
+      return leftStrandColor;
+  }
+}
+
 // Get which strand is "over" (on top): 'left' or 'right'
 export function getOverStrand(knotType: KnotType): 'left' | 'right' {
   switch (knotType) {
@@ -114,7 +129,7 @@ export function defaultColors(): string[] {
 
 // Compute the rasterized pattern (color of each "pixel" in the bracelet)
 // Each knot produces one colored square; short rows have side squares
-export function computePattern(state: BraceletState): string[][] {
+export function computePattern(state: BraceletState, showBack = false): string[][] {
   const { numStrands, numRows, knots, colors } = state;
   const strandOrder = computeStrandOrder(state);
   const pattern: string[][] = [];
@@ -135,7 +150,11 @@ export function computePattern(state: BraceletState): string[][] {
       const leftColor = colors[strandOrder[row][leftIdx]];
       const rightColor = colors[strandOrder[row][rightIdx]];
       const knotType = knots[row]?.[k] ?? 'FF';
-      rowColors.push(getKnotTopColor(knotType, leftColor, rightColor));
+      rowColors.push(
+        showBack
+          ? getKnotBottomColor(knotType, leftColor, rightColor)
+          : getKnotTopColor(knotType, leftColor, rightColor)
+      );
     }
 
     if (row % 2 === 1) {

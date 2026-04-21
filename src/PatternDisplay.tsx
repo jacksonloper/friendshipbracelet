@@ -1,22 +1,38 @@
+import { useState } from 'react';
+
 interface PatternDisplayProps {
   pattern: string[][];
+  backPattern: string[][];
 }
 
-export default function PatternDisplay({ pattern }: PatternDisplayProps) {
-  if (pattern.length === 0) return null;
+export default function PatternDisplay({ pattern, backPattern }: PatternDisplayProps) {
+  const [showBack, setShowBack] = useState(false);
+  const visiblePattern = showBack ? backPattern : pattern;
+
+  if (visiblePattern.length === 0) return null;
 
   const cellSize = 18;
   const gap = 2;
   const diagSize = Math.ceil(cellSize * Math.SQRT2);
-  const maxCols = Math.max(...pattern.map(r => r.length));
+  const maxCols = Math.max(...visiblePattern.map(r => r.length));
   const svgWidth = maxCols * (diagSize + gap) + diagSize;
-  const svgHeight = pattern.length * (diagSize / 2 + gap) + diagSize;
+  const svgHeight = visiblePattern.length * (diagSize / 2 + gap) + diagSize;
 
   return (
     <div className="pattern-display">
-      <h3 style={{ margin: '8px 0 4px', fontSize: '0.9rem', textAlign: 'center' }}>Pattern</h3>
+      <div className="pattern-display-header">
+        <h3 style={{ margin: '8px 0 4px', fontSize: '0.9rem' }}>Pattern</h3>
+        <label>
+          <input
+            type="checkbox"
+            checked={showBack}
+            onChange={e => setShowBack(e.target.checked)}
+          />
+          Show back
+        </label>
+      </div>
       <svg width={svgWidth} height={svgHeight} style={{ minWidth: svgWidth, display: 'block', margin: '0 auto' }}>
-        {pattern.map((row, rowIdx) => {
+        {visiblePattern.map((row, rowIdx) => {
           const isShortRow = row.length < maxCols;
           const offsetX = isShortRow ? 0 : (diagSize + gap) / 2;
           // Actually: even rows (long) are centered, odd rows (short) might need offset

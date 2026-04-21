@@ -174,6 +174,7 @@ export default function App() {
 
   const strandOrder = computeStrandOrder(state);
   const pattern = computePattern(state);
+  const backPattern = computePattern(state, true);
 
   return (
     <div>
@@ -274,7 +275,7 @@ export default function App() {
       />
 
       {/* Pattern display */}
-      <PatternDisplay pattern={pattern} />
+      <PatternDisplay pattern={pattern} backPattern={backPattern} />
     </div>
   );
 }
