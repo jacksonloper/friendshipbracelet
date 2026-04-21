@@ -210,12 +210,13 @@ export default function KnotDiagram({ state, strandOrder, onKnotClick }: KnotDia
             stroke="var(--fg)" strokeWidth={2} />
         );
 
-        // Arrow inside knot
+        // Arrow inside knot — use contrasting color so it's visible on any strand color
         const arrow = getArrowPath(knotType, center.x, center.y, NODE_R * 0.6);
+        const arrowColor = getContrastColor(topColor);
         elements.push(
           <path key={`knot-arr-${row}-${k}`}
             d={arrow} fill="none"
-            stroke="var(--fg)" strokeWidth={1.5}
+            stroke={arrowColor} strokeWidth={1.5}
             strokeLinecap="round" strokeLinejoin="round" />
         );
 
@@ -241,6 +242,25 @@ export default function KnotDiagram({ state, strandOrder, onKnotClick }: KnotDia
       </svg>
     </div>
   );
+}
+
+// Returns white for dark background colors and black for light ones,
+// so arrows remain visible regardless of the strand color.
+function getContrastColor(hex: string): string {
+  const color = hex.replace('#', '');
+  let r: number, g: number, b: number;
+  if (color.length === 3) {
+    r = parseInt(color[0] + color[0], 16);
+    g = parseInt(color[1] + color[1], 16);
+    b = parseInt(color[2] + color[2], 16);
+  } else {
+    r = parseInt(color.substring(0, 2), 16);
+    g = parseInt(color.substring(2, 4), 16);
+    b = parseInt(color.substring(4, 6), 16);
+  }
+  // Perceived luminance (W3C formula)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? '#000000' : '#ffffff';
 }
 
 // Arrow inside the knot showing direction
