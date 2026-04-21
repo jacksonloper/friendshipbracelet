@@ -80,11 +80,17 @@ export default function App() {
       const colors = Array.from({ length: n }, (_, i) =>
         prev.colors[i % prev.colors.length] || defaultColors()[i % 6]
       );
+      const knots: KnotType[][] = [];
+      for (let row = 0; row < prev.numRows; row++) {
+        const nk = knotsInRow(n, row);
+        const existing = prev.knots[row] ?? [];
+        knots.push(Array.from({ length: nk }, (_, k) => existing[k] ?? 'FF'));
+      }
       return {
         ...prev,
         numStrands: n,
         colors,
-        knots: generateDefaultKnots(n, prev.numRows),
+        knots,
       };
     });
   }, []);
