@@ -277,7 +277,12 @@ export default function App() {
       />
 
       {/* Pattern display */}
-      <PatternDisplay pattern={pattern} backPattern={backPattern} />
+      <PatternDisplay
+        pattern={pattern}
+        backPattern={backPattern}
+        knots={state.knots}
+        numStrands={state.numStrands}
+      />
 
       <div className="strand-stats">
         <h3>Longest unwoven stretch</h3>
