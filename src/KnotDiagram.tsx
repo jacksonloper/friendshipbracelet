@@ -235,7 +235,7 @@ export default function KnotDiagram({ state, strandOrder, onKnotClick }: KnotDia
 
   return (
     <div className="knot-diagram">
-      <svg width={width} height={height} style={{ minWidth: width }}>
+      <svg width={width} height={height} style={{ minWidth: width, display: 'block', margin: '0 auto' }}>
         {renderStrands()}
         {renderKnots()}
       </svg>

@@ -14,8 +14,8 @@ export default function PatternDisplay({ pattern }: PatternDisplayProps) {
 
   return (
     <div className="pattern-display">
-      <h3 style={{ margin: '8px 0 4px', fontSize: '0.9rem' }}>Pattern</h3>
-      <svg width={svgWidth} height={svgHeight} style={{ minWidth: svgWidth }}>
+      <h3 style={{ margin: '8px 0 4px', fontSize: '0.9rem', textAlign: 'center' }}>Pattern</h3>
+      <svg width={svgWidth} height={svgHeight} style={{ minWidth: svgWidth, display: 'block', margin: '0 auto' }}>
         {pattern.map((row, rowIdx) => {
           const isShortRow = row.length < maxCols;
           const offsetX = isShortRow ? 0 : (diagSize + gap) / 2;
