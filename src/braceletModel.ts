@@ -111,11 +111,13 @@ export function computeLongestUnwovenStretches(state: BraceletState): number[] {
   const longestStretches = Array(numStrands).fill(0);
   const currentStretches = Array(numStrands).fill(0);
   const lastRoles = Array<'over' | 'under' | null>(numStrands).fill(null);
+  const lastDirections = Array<'left' | 'right' | null>(numStrands).fill(null);
 
   for (let row = 0; row < numRows; row++) {
     const nk = knotsInRow(numStrands, row);
     const offset = row % 2 === 0 ? 0 : 1;
     const rowRoles = Array<'over' | 'under' | null>(numStrands).fill(null);
+    const rowDirections = Array<'left' | 'right' | null>(numStrands).fill(null);
 
     for (let k = 0; k < nk; k++) {
       const leftIdx = offset + k * 2;
@@ -123,17 +125,24 @@ export function computeLongestUnwovenStretches(state: BraceletState): number[] {
       const knotType = knots[row]?.[k] ?? 'FF';
       const leftStrand = currentOrder[leftIdx];
       const rightStrand = currentOrder[rightIdx];
-      const overStrand = getOverStrand(knotType);
+      const isStraightKnot = knotType === 'FF' || knotType === 'BB';
 
-      if (overStrand === 'left') {
-        rowRoles[leftStrand] = 'over';
-        rowRoles[rightStrand] = 'under';
-      } else {
-        rowRoles[leftStrand] = 'under';
-        rowRoles[rightStrand] = 'over';
+      if (isStraightKnot) {
+        const overStrand = getOverStrand(knotType);
+
+        if (overStrand === 'left') {
+          rowRoles[leftStrand] = 'over';
+          rowRoles[rightStrand] = 'under';
+        } else {
+          rowRoles[leftStrand] = 'under';
+          rowRoles[rightStrand] = 'over';
+        }
+
+        rowDirections[leftStrand] = 'right';
+        rowDirections[rightStrand] = 'left';
       }
 
-      if (knotType === 'FF' || knotType === 'BB') {
+      if (isStraightKnot) {
         const temp = currentOrder[leftIdx];
         currentOrder[leftIdx] = currentOrder[rightIdx];
         currentOrder[rightIdx] = temp;
@@ -142,14 +151,19 @@ export function computeLongestUnwovenStretches(state: BraceletState): number[] {
 
     for (let strand = 0; strand < numStrands; strand++) {
       const role = rowRoles[strand];
-      if (role === null) {
+      const direction = rowDirections[strand];
+
+      if (role === null || direction === null) {
         currentStretches[strand] = 0;
         lastRoles[strand] = null;
+        lastDirections[strand] = null;
         continue;
       }
 
-      currentStretches[strand] = lastRoles[strand] === role ? currentStretches[strand] + 1 : 1;
+      const continuesStretch = lastRoles[strand] === role && lastDirections[strand] === direction;
+      currentStretches[strand] = continuesStretch ? currentStretches[strand] + 1 : 1;
       lastRoles[strand] = role;
+      lastDirections[strand] = direction;
       longestStretches[strand] = Math.max(longestStretches[strand], currentStretches[strand]);
     }
   }
