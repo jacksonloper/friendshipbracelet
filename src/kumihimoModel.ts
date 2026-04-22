@@ -29,27 +29,24 @@ export interface SlotState {
   strands: number[];
 }
 
-export type Selector =
-  | { kind: 'specific_id'; strandId: number }
-  | { kind: 'top' }
-  | { kind: 'bottom' }
-  | { kind: 'index'; index: number };
-
 export interface ElementaryMove {
   source: number;
   target: number;
-  selector?: Selector;
 }
 
 export interface CompoundMove {
-  name?: string;
+  name: string;
   moves: ElementaryMove[];
+}
+
+export interface SequenceItem {
+  name: string;
+  offset: number;
 }
 
 export interface KumihimoConfig {
   slotCount: number;
   strandCount: number;
-  repeats: number;
   centerScale: number;
   twistScale: number;
 }
@@ -167,9 +164,8 @@ const EMPTY_DIAGNOSTICS: KumihimoDiagnostics = {
 
 export function createDefaultKumihimoConfig(): KumihimoConfig {
   return {
-    slotCount: 32,
-    strandCount: 16,
-    repeats: 8,
+    slotCount: 16,
+    strandCount: 8,
     centerScale: 1,
     twistScale: 0.25,
   };
@@ -189,90 +185,153 @@ export function createDefaultStrands(slotCount: number, strandCount: number): St
   }));
 }
 
-export function createDefaultCompoundMoves(slotCount: number): CompoundMove[] {
-  const quarter = Math.floor(slotCount / 4);
-  const half = Math.floor(slotCount / 2);
-  const threeQuarter = Math.floor((slotCount * 3) / 4);
-  const ringA = [
-    normalizeSlot(quarter - 2, slotCount),
-    normalizeSlot(half - 2, slotCount),
-    normalizeSlot(threeQuarter - 2, slotCount),
-    normalizeSlot(-2, slotCount),
-  ];
-  const ringB = [
-    normalizeSlot(quarter - 1, slotCount),
-    normalizeSlot(half - 1, slotCount),
-    normalizeSlot(threeQuarter - 1, slotCount),
-    normalizeSlot(-1, slotCount),
-  ];
-  const ringC = [
-    normalizeSlot(0, slotCount),
-    normalizeSlot(quarter, slotCount),
-    normalizeSlot(half, slotCount),
-    normalizeSlot(threeQuarter, slotCount),
-  ];
-  const ringD = [
-    normalizeSlot(1, slotCount),
-    normalizeSlot(quarter + 1, slotCount),
-    normalizeSlot(half + 1, slotCount),
-    normalizeSlot(threeQuarter + 1, slotCount),
-  ];
-
-  return [
-    { name: 'Quadrant cycle A', moves: cycleMoves(ringA) },
-    { name: 'Quadrant cycle B', moves: cycleMoves(ringB) },
-    { name: 'Quadrant cycle C', moves: cycleMoves(ringC) },
-    { name: 'Quadrant cycle D', moves: cycleMoves(ringD) },
-  ];
+export function createDefaultDefinitionsText(): string {
+  return 'A: 0 3, 2 5, 4 7, 6 9, 8 11, 10 13, 12 15, 14 1';
 }
 
-export function compoundMovesToJSON(compounds: CompoundMove[]): string {
-  return JSON.stringify(compounds, null, 2);
+export function createDefaultSequenceText(): string {
+  return 'A, A[1], A, A[1], A, A[1], A, A[1]';
 }
 
-export function parseCompoundMoves(input: string, slotCount: number): { compounds: CompoundMove[]; errors: string[] } {
-  try {
-    const parsed = JSON.parse(input) as unknown;
-    if (!Array.isArray(parsed)) {
-      return { compounds: [], errors: ['Move pattern must be a JSON array of compound moves.'] };
+export function createEdoYatsuGumiPreset(): {
+  config: KumihimoConfig;
+  strands: StrandSpec[];
+  definitionsText: string;
+  sequenceText: string;
+} {
+  const config: KumihimoConfig = { slotCount: 16, strandCount: 8, centerScale: 1, twistScale: 0.25 };
+  const strands = createDefaultStrands(16, 8).map((strand, i) => ({ ...strand, slot: i * 2 }));
+  const definitionsText = 'A: 0 3, 2 5, 4 7, 6 9, 8 11, 10 13, 12 15, 14 1';
+  const sequenceText = 'A, A[1], A, A[1], A, A[1], A, A[1]';
+  return { config, strands, definitionsText, sequenceText };
+}
+
+export function createKongoKumiPreset(): {
+  config: KumihimoConfig;
+  strands: StrandSpec[];
+  definitionsText: string;
+  sequenceText: string;
+} {
+  const config: KumihimoConfig = { slotCount: 32, strandCount: 16, centerScale: 1, twistScale: 0.25 };
+  const strands = createDefaultStrands(32, 16).map((strand, i) => ({ ...strand, slot: i * 2 }));
+  const definitionsText = [
+    'A: 0 5, 4 9, 8 13, 12 17, 16 21, 20 25, 24 29, 28 1',
+    'B: 5 8, 9 12, 13 16, 17 20, 21 24, 25 28, 29 0, 1 4',
+  ].join('\n');
+  const sequenceText = 'A, A[2], B, B[2], A, A[2], B, B[2], A, A[2], B, B[2], A, A[2], B, B[2]';
+  return { config, strands, definitionsText, sequenceText };
+}
+
+export function parseDefinitions(
+  text: string,
+  slotCount: number,
+): { definitions: Record<string, ElementaryMove[]>; errors: string[] } {
+  const errors: string[] = [];
+  const definitions: Record<string, ElementaryMove[]> = {};
+
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('#')) continue;
+
+    const colonIndex = trimmed.indexOf(':');
+    if (colonIndex < 0) {
+      errors.push(`Invalid definition line (missing ":"): ${trimmed}`);
+      continue;
     }
 
-    const errors: string[] = [];
-    const compounds: CompoundMove[] = parsed.map((compound, compoundIndex) => {
-      if (!compound || typeof compound !== 'object' || !Array.isArray((compound as { moves?: unknown }).moves)) {
-        errors.push(`Compound ${compoundIndex + 1} must have a moves array.`);
-        return { name: `Compound ${compoundIndex + 1}`, moves: [] };
+    const name = trimmed.slice(0, colonIndex).trim();
+    if (!name || !/^\w+$/.test(name)) {
+      errors.push(`Invalid compound name: "${name}"`);
+      continue;
+    }
+
+    const movesStr = trimmed.slice(colonIndex + 1).trim();
+    const moves: ElementaryMove[] = [];
+
+    for (const moveStr of movesStr.split(',')) {
+      const parts = moveStr.trim().split(/\s+/);
+      if (parts.length !== 2) {
+        errors.push(`Compound "${name}": invalid move "${moveStr.trim()}" — expected "source target"`);
+        continue;
       }
+      const source = parseInt(parts[0], 10);
+      const target = parseInt(parts[1], 10);
+      if (!Number.isInteger(source) || !Number.isInteger(target)) {
+        errors.push(`Compound "${name}": non-integer slot in "${moveStr.trim()}"`);
+        continue;
+      }
+      moves.push({ source: normalizeSlot(source, slotCount), target: normalizeSlot(target, slotCount) });
+    }
 
-      const record = compound as { name?: unknown; moves: unknown[] };
-      const moves = record.moves.map((move, moveIndex) => {
-        if (!move || typeof move !== 'object') {
-          errors.push(`Compound ${compoundIndex + 1}, move ${moveIndex + 1} is invalid.`);
-          return { source: 0, target: 0 };
-        }
-        const raw = move as { source?: unknown; target?: unknown; selector?: unknown };
-        if (!Number.isInteger(raw.source) || !Number.isInteger(raw.target)) {
-          errors.push(`Compound ${compoundIndex + 1}, move ${moveIndex + 1} needs integer source and target slots.`);
-          return { source: 0, target: 0 };
-        }
-        const selector = normalizeSelector(raw.selector, compoundIndex, moveIndex, errors);
-        return {
-          source: normalizeSlot(raw.source as number, slotCount),
-          target: normalizeSlot(raw.target as number, slotCount),
-          ...(selector ? { selector } : {}),
-        };
-      });
-
-      return {
-        name: typeof record.name === 'string' && record.name.trim() ? record.name : `Compound ${compoundIndex + 1}`,
-        moves,
-      };
-    });
-
-    return { compounds, errors };
-  } catch {
-    return { compounds: [], errors: ['Move pattern JSON could not be parsed.'] };
+    if (name in definitions) {
+      errors.push(`Duplicate compound name: "${name}"`);
+    } else {
+      definitions[name] = moves;
+    }
   }
+
+  return { definitions, errors };
+}
+
+export function parseSequence(text: string): { sequence: SequenceItem[]; errors: string[] } {
+  const errors: string[] = [];
+  const sequence: SequenceItem[] = [];
+
+  for (const item of text.split(',')) {
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+
+    const match = trimmed.match(/^(\w+)(?:\[(\d+)\])?$/);
+    if (!match) {
+      errors.push(`Invalid sequence item: "${trimmed}"`);
+      continue;
+    }
+
+    const name = match[1];
+    const offset = match[2] !== undefined ? parseInt(match[2], 10) : 0;
+    sequence.push({ name, offset });
+  }
+
+  return { sequence, errors };
+}
+
+export function resolveCompounds(
+  sequence: SequenceItem[],
+  definitions: Record<string, ElementaryMove[]>,
+  slotCount: number,
+): { compounds: CompoundMove[]; errors: string[] } {
+  const errors: string[] = [];
+  const compounds: CompoundMove[] = [];
+
+  for (const item of sequence) {
+    const baseMoves = definitions[item.name];
+    if (!baseMoves) {
+      errors.push(`Undefined compound: "${item.name}"`);
+      continue;
+    }
+
+    const moves = baseMoves.map(move => ({
+      source: normalizeSlot(move.source + item.offset, slotCount),
+      target: normalizeSlot(move.target + item.offset, slotCount),
+    }));
+
+    const displayName = item.offset === 0 ? item.name : `${item.name}[${item.offset}]`;
+    compounds.push({ name: displayName, moves });
+  }
+
+  return { compounds, errors };
+}
+
+export function definitionsToText(definitions: Record<string, ElementaryMove[]>): string {
+  return Object.entries(definitions)
+    .map(([name, moves]) => `${name}: ${moves.map(m => `${m.source} ${m.target}`).join(', ')}`)
+    .join('\n');
+}
+
+export function sequenceToText(sequence: SequenceItem[]): string {
+  return sequence
+    .map(item => (item.offset === 0 ? item.name : `${item.name}[${item.offset}]`))
+    .join(', ');
 }
 
 export function resizeStrands(existing: StrandSpec[], strandCount: number, slotCount: number): StrandSpec[] {
@@ -297,6 +356,18 @@ export function simulateKumihimo(
 
   for (const spec of strandSpecs) {
     const slot = normalizeSlot(spec.slot, slotCount);
+    if (slots[slot].strands.length > 0) {
+      errors.push(`Strand ${spec.id} cannot start in slot ${slot}: already occupied.`);
+      return finalizeResult({
+        snapshots: [createSnapshot(0, null, 'Initial layout', slots, { x: 0, y: 0 }, 0)],
+        visibleSegments: [],
+        centerHistory: [{ x: 0, y: 0 }],
+        twistHistory: [0],
+        diagnostics: { ...EMPTY_DIAGNOSTICS },
+        errors,
+        executedCompounds: 0,
+      });
+    }
     const strand: Strand = {
       id: spec.id,
       color: spec.color,
@@ -325,121 +396,141 @@ export function simulateKumihimo(
   let timeToRebalance: number | null = null;
   const allDistances: number[] = [];
   const floatRiskValues: number[] = [];
-  const periodCenter = { x: 0, y: 0 };
-  let periodTwist = 0;
 
-  for (let repeat = 0; repeat < config.repeats; repeat++) {
-    for (let compoundIndex = 0; compoundIndex < compounds.length; compoundIndex++) {
-      const compound = compounds[compoundIndex];
-      const records: ElementaryRecord[] = [];
+  for (let compoundIndex = 0; compoundIndex < compounds.length; compoundIndex++) {
+    const compound = compounds[compoundIndex];
+    const records: ElementaryRecord[] = [];
 
-      for (let moveIndex = 0; moveIndex < compound.moves.length; moveIndex++) {
-        const move = compound.moves[moveIndex];
-        const source = normalizeSlot(move.source, slotCount);
-        const target = normalizeSlot(move.target, slotCount);
-        const sourceSlot = slots[source];
-        const strandId = selectStrandId(sourceSlot, move.selector);
+    for (let moveIndex = 0; moveIndex < compound.moves.length; moveIndex++) {
+      const move = compound.moves[moveIndex];
+      const source = normalizeSlot(move.source, slotCount);
+      const target = normalizeSlot(move.target, slotCount);
+      const sourceSlot = slots[source];
+      const strandId = sourceSlot.strands[0] ?? null;
 
-        if (strandId === null) {
-          errors.push(`Compound ${compoundIndex + 1}, move ${moveIndex + 1}: no strand available in slot ${source}.`);
-          return finalizeResult({
-            snapshots,
-            visibleSegments,
+      if (strandId === null) {
+        errors.push(`"${compound.name}", move ${moveIndex + 1}: slot ${source} is empty.`);
+        return finalizeResult({
+          snapshots,
+          visibleSegments,
+          centerHistory,
+          twistHistory,
+          diagnostics: buildDiagnostics({
+            slots,
+            slotCount,
+            initialOccupancy,
+            initialSectorOccupancy,
             centerHistory,
             twistHistory,
-            diagnostics: buildDiagnostics({
-              slots,
-              slotCount,
-              initialOccupancy,
-              initialSectorOccupancy,
-              centerHistory,
-              twistHistory,
-              periodCenter,
-              periodTwist,
-              movementTimes,
-              strands,
-              allDistances,
-              floatRiskValues,
-              timeToRebalance,
-              maxTemporaryImbalance,
-              visibleSegments,
-              compounds,
-            }),
-            errors,
-            executedCompounds: step,
-          });
-        }
-
-        removeStrand(slots[source], strandId);
-        slots[target].strands.push(strandId);
-
-        const strand = strands.get(strandId);
-        if (!strand) continue;
-
-        strand.slot = target;
-        strand.moveCount += 1;
-        strand.history.push({ step: step + 1, slot: target, compoundIndex, moveIndex });
-        movementTimes.get(strandId)?.push(step + 1);
-
-        const centerContribution = centerContributionForMove(source, target, slotCount, config.centerScale);
-        const direction = subtractVectors(slotVector(target, slotCount), slotVector(source, slotCount));
-        const distance = circularDistance(source, target, slotCount);
-        records.push({
-          source,
-          target,
-          strandId,
-          color: strand.color,
-          centerContribution,
-          direction,
-          distance,
-        });
-        allDistances.push(distance);
-        floatRiskValues.push(Math.abs(distance - slotCount / 2));
-      }
-
-      const compoundCenter = records.reduce(
-        (acc, record) => addVectors(acc, record.centerContribution),
-        { x: 0, y: 0 },
-      );
-      const compoundTwist = twistContribution(records, slotCount, config.twistScale);
-
-      center = addVectors(center, compoundCenter);
-      twist += compoundTwist;
-      step += 1;
-
-      if (repeat === 0) {
-        periodCenter.x += compoundCenter.x;
-        periodCenter.y += compoundCenter.y;
-        periodTwist += compoundTwist;
-      }
-
-      for (const record of records) {
-        visibleSegments.push({
-          time: step,
-          strandId: record.strandId,
-          color: record.color,
-          source: record.source,
-          target: record.target,
-          surfaceAngle: visibleAngle(record.source, record.target, twist, slotCount),
-          twist,
-          center: { ...center },
-          exposure: 1,
+            periodCenter: { ...center },
+            periodTwist: twist,
+            movementTimes,
+            strands,
+            allDistances,
+            floatRiskValues,
+            timeToRebalance,
+            maxTemporaryImbalance,
+            visibleSegments,
+            compounds,
+          }),
+          errors,
+          executedCompounds: step,
         });
       }
 
-      centerHistory.push({ ...center });
-      twistHistory.push(twist);
-      const occupancy = occupancyVector(slots);
-      const imbalance = l1Distance(occupancy, initialOccupancy);
-      maxTemporaryImbalance = Math.max(maxTemporaryImbalance, imbalance);
-      if (timeToRebalance === null && occupancy.every((value, index) => value === initialOccupancy[index])) {
-        timeToRebalance = step;
+      if (slots[target].strands.length > 0) {
+        errors.push(`"${compound.name}", move ${moveIndex + 1}: target slot ${target} is already occupied.`);
+        return finalizeResult({
+          snapshots,
+          visibleSegments,
+          centerHistory,
+          twistHistory,
+          diagnostics: buildDiagnostics({
+            slots,
+            slotCount,
+            initialOccupancy,
+            initialSectorOccupancy,
+            centerHistory,
+            twistHistory,
+            periodCenter: { ...center },
+            periodTwist: twist,
+            movementTimes,
+            strands,
+            allDistances,
+            floatRiskValues,
+            timeToRebalance,
+            maxTemporaryImbalance,
+            visibleSegments,
+            compounds,
+          }),
+          errors,
+          executedCompounds: step,
+        });
       }
 
-      snapshots.push(
-        createSnapshot(step, compoundIndex, compound.name ?? `Compound ${compoundIndex + 1}`, slots, center, twist),
-      );
+      slots[source].strands.length = 0;
+      slots[target].strands.push(strandId);
+
+      const strand = strands.get(strandId);
+      if (!strand) continue;
+
+      strand.slot = target;
+      strand.moveCount += 1;
+      strand.history.push({ step: step + 1, slot: target, compoundIndex, moveIndex });
+      movementTimes.get(strandId)?.push(step + 1);
+
+      const centerContribution = centerContributionForMove(source, target, slotCount, config.centerScale);
+      const direction = subtractVectors(slotVector(target, slotCount), slotVector(source, slotCount));
+      const distance = circularDistance(source, target, slotCount);
+      records.push({
+        source,
+        target,
+        strandId,
+        color: strand.color,
+        centerContribution,
+        direction,
+        distance,
+      });
+      allDistances.push(distance);
+      floatRiskValues.push(Math.abs(distance - slotCount / 2));
     }
+
+    const compoundCenter = records.reduce(
+      (acc, record) => addVectors(acc, record.centerContribution),
+      { x: 0, y: 0 },
+    );
+    const compoundTwist = twistContribution(records, slotCount, config.twistScale);
+
+    center = addVectors(center, compoundCenter);
+    twist += compoundTwist;
+    step += 1;
+
+    for (const record of records) {
+      visibleSegments.push({
+        time: step,
+        strandId: record.strandId,
+        color: record.color,
+        source: record.source,
+        target: record.target,
+        surfaceAngle: visibleAngle(record.source, record.target, twist, slotCount),
+        twist,
+        center: { ...center },
+        exposure: 1,
+      });
+    }
+
+    centerHistory.push({ ...center });
+    twistHistory.push(twist);
+    const occupancy = occupancyVector(slots);
+    const imbalance = l1Distance(occupancy, initialOccupancy);
+    maxTemporaryImbalance = Math.max(maxTemporaryImbalance, imbalance);
+    if (timeToRebalance === null && occupancy.every((value, index) => value === initialOccupancy[index])) {
+      timeToRebalance = step;
+    }
+
+    snapshots.push(
+      createSnapshot(step, compoundIndex, compound.name, slots, center, twist),
+    );
   }
 
   return finalizeResult({
@@ -454,8 +545,8 @@ export function simulateKumihimo(
       initialSectorOccupancy,
       centerHistory,
       twistHistory,
-      periodCenter,
-      periodTwist,
+      periodCenter: { ...center },
+      periodTwist: twist,
       movementTimes,
       strands,
       allDistances,
@@ -473,35 +564,6 @@ export function simulateKumihimo(
 function offsetsForGroup(anchor: number, groupSize: number, slotCount: number): number[] {
   const startOffset = -Math.floor(groupSize / 2);
   return Array.from({ length: groupSize }, (_, offset) => normalizeSlot(anchor + startOffset + offset, slotCount));
-}
-
-function cycleMoves(slots: number[]): ElementaryMove[] {
-  return slots.map((source, index) => ({
-    source,
-    target: slots[(index + 1) % slots.length],
-    selector: { kind: 'top' },
-  }));
-}
-
-function normalizeSelector(
-  rawSelector: unknown,
-  compoundIndex: number,
-  moveIndex: number,
-  errors: string[],
-): Selector | undefined {
-  if (!rawSelector || typeof rawSelector !== 'object') return undefined;
-  const selector = rawSelector as { kind?: unknown; strandId?: unknown; index?: unknown };
-  if (selector.kind === 'top' || selector.kind === 'bottom') {
-    return { kind: selector.kind };
-  }
-  if (selector.kind === 'specific_id' && Number.isInteger(selector.strandId)) {
-    return { kind: 'specific_id', strandId: selector.strandId as number };
-  }
-  if (selector.kind === 'index' && Number.isInteger(selector.index)) {
-    return { kind: 'index', index: selector.index as number };
-  }
-  errors.push(`Compound ${compoundIndex + 1}, move ${moveIndex + 1}: selector is invalid.`);
-  return undefined;
 }
 
 function normalizeSlot(slot: number, slotCount: number): number {
@@ -563,26 +625,6 @@ function wrapSignedAngle(angle: number): number {
   let wrapped = ((angle + Math.PI) % FULL_TURN + FULL_TURN) % FULL_TURN - Math.PI;
   if (wrapped <= -Math.PI) wrapped += FULL_TURN;
   return wrapped;
-}
-
-function selectStrandId(slot: SlotState, selector?: Selector): number | null {
-  if (slot.strands.length === 0) return null;
-  if (!selector || selector.kind === 'top') return slot.strands[slot.strands.length - 1] ?? null;
-  if (selector.kind === 'bottom') return slot.strands[0] ?? null;
-  if (selector.kind === 'specific_id') {
-    return slot.strands.includes(selector.strandId) ? selector.strandId : null;
-  }
-  if (selector.kind === 'index') {
-    return slot.strands[selector.index] ?? null;
-  }
-  return null;
-}
-
-function removeStrand(slot: SlotState, strandId: number): void {
-  const index = slot.strands.indexOf(strandId);
-  if (index >= 0) {
-    slot.strands.splice(index, 1);
-  }
 }
 
 function createSnapshot(

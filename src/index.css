@@ -89,6 +89,18 @@ code {
   margin-bottom: 4px;
 }
 
+.preset-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.preset-label {
+  font-size: 0.85rem;
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+}
+
 .page-description {
   margin: 0;
   color: var(--fg);

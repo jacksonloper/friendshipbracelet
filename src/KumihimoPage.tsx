@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  CompoundMove,
   KumihimoConfig,
   StepSnapshot,
   StrandSpec,
-  compoundMovesToJSON,
-  createDefaultCompoundMoves,
+  createDefaultDefinitionsText,
   createDefaultKumihimoConfig,
+  createDefaultSequenceText,
   createDefaultStrands,
-  parseCompoundMoves,
+  createEdoYatsuGumiPreset,
+  createKongoKumiPreset,
+  parseDefinitions,
+  parseSequence,
   resizeStrands,
+  resolveCompounds,
   simulateKumihimo,
 } from './kumihimoModel';
 
@@ -20,14 +23,20 @@ const CHART_INSET = CHART_PADDING * 2;
 
 export default function KumihimoPage() {
   const [config, setConfig] = useState<KumihimoConfig>(createDefaultKumihimoConfig);
-  const [strands, setStrands] = useState<StrandSpec[]>(() => createDefaultStrands(32, 16));
-  const [moveText, setMoveText] = useState(() => compoundMovesToJSON(createDefaultCompoundMoves(32)));
+  const [strands, setStrands] = useState<StrandSpec[]>(() => createDefaultStrands(16, 8).map((s, i) => ({ ...s, slot: i * 2 })));
+  const [definitionsText, setDefinitionsText] = useState(createDefaultDefinitionsText);
+  const [sequenceText, setSequenceText] = useState(createDefaultSequenceText);
   const [selectedStep, setSelectedStep] = useState(0);
 
-  const parsedMoves = useMemo(() => parseCompoundMoves(moveText, config.slotCount), [config.slotCount, moveText]);
+  const parsedDefs = useMemo(() => parseDefinitions(definitionsText, config.slotCount), [definitionsText, config.slotCount]);
+  const parsedSeq = useMemo(() => parseSequence(sequenceText), [sequenceText]);
+  const resolvedCompounds = useMemo(
+    () => resolveCompounds(parsedSeq.sequence, parsedDefs.definitions, config.slotCount),
+    [parsedSeq.sequence, parsedDefs.definitions, config.slotCount],
+  );
   const simulation = useMemo(
-    () => simulateKumihimo(config, strands, parsedMoves.compounds),
-    [config, parsedMoves.compounds, strands],
+    () => simulateKumihimo(config, strands, resolvedCompounds.compounds),
+    [config, resolvedCompounds.compounds, strands],
   );
 
   useEffect(() => {
@@ -52,7 +61,6 @@ export default function KumihimoPage() {
     const slotCount = Math.max(8, value);
     setConfig(previous => ({ ...previous, slotCount }));
     setStrands(previous => resizeStrands(previous, config.strandCount, slotCount));
-    setMoveText(compoundMovesToJSON(createDefaultCompoundMoves(slotCount)));
     setSelectedStep(0);
   }
 
@@ -64,13 +72,14 @@ export default function KumihimoPage() {
     setSelectedStep(0);
   }
 
-  function resetDefaults() {
-    const nextConfig = createDefaultKumihimoConfig();
-    setConfig(nextConfig);
-    setStrands(createDefaultStrands(nextConfig.slotCount, nextConfig.strandCount));
-    setMoveText(compoundMovesToJSON(createDefaultCompoundMoves(nextConfig.slotCount)));
+  function applyPreset(preset: { config: KumihimoConfig; strands: StrandSpec[]; definitionsText: string; sequenceText: string }) {
+    setConfig(preset.config);
+    setStrands(preset.strands);
+    setDefinitionsText(preset.definitionsText);
+    setSequenceText(preset.sequenceText);
     setSelectedStep(0);
   }
+
 
   return (
     <div className="kumihimo-page">
@@ -81,7 +90,11 @@ export default function KumihimoPage() {
             Explore slot occupancy, center drift, twist, and a surface-color estimate for generalized (4n)-strand kumihimo.
           </p>
         </div>
-        <button type="button" onClick={resetDefaults}>Reset defaults</button>
+        <div className="preset-buttons">
+          <span className="preset-label">Presets:</span>
+          <button type="button" onClick={() => applyPreset(createEdoYatsuGumiPreset())}>Edo yatsu gumi</button>
+          <button type="button" onClick={() => applyPreset(createKongoKumiPreset())}>Kongo kumi</button>
+        </div>
       </div>
 
       <div className="kumihimo-grid">
@@ -106,20 +119,6 @@ export default function KumihimoPage() {
                 step={4}
                 value={config.strandCount}
                 onChange={event => handleStrandCountChange(parseInt(event.target.value, 10))}
-              />
-            </label>
-            <label>
-              Compound repeats
-              <input
-                type="number"
-                min={1}
-                max={64}
-                value={config.repeats}
-                onChange={event => {
-                  const value = parseInt(event.target.value, 10);
-                  if (!Number.isFinite(value)) return;
-                  updateConfig('repeats', Math.max(1, value));
-                }}
               />
             </label>
             <label>
@@ -152,7 +151,7 @@ export default function KumihimoPage() {
             </label>
           </div>
           <p className="note">
-            The simulator uses the plan&apos;s chord-midpoint center estimate and crossing-order twist heuristic to highlight drift and rotation over repeated compound moves.
+            The simulator uses the plan&apos;s chord-midpoint center estimate and crossing-order twist heuristic to highlight drift and rotation over the sequence.
           </p>
         </section>
 
@@ -188,36 +187,66 @@ export default function KumihimoPage() {
         </section>
       </div>
 
-      <section className="panel">
-        <div className="panel-header">
-          <h2>Compound move pattern</h2>
-          <button type="button" onClick={() => setMoveText(compoundMovesToJSON(createDefaultCompoundMoves(config.slotCount)))}>
-            Load default pattern
-          </button>
-        </div>
-        <textarea
-          className="code-editor"
-          value={moveText}
-          onChange={event => setMoveText(event.target.value)}
-          spellCheck={false}
-          aria-label="Compound move pattern JSON"
-        />
-        {parsedMoves.errors.length > 0 ? (
-          <div className="error-list">
-            {parsedMoves.errors.map(error => <div key={error}>{error}</div>)}
+      <div className="kumihimo-grid">
+        <section className="panel">
+          <div className="panel-header">
+            <h2>Compound definitions</h2>
           </div>
-        ) : (
+          <textarea
+            className="code-editor"
+            value={definitionsText}
+            onChange={event => setDefinitionsText(event.target.value)}
+            spellCheck={false}
+            aria-label="Compound definitions"
+          />
           <p className="note">
-            {parsedMoves.compounds.length} compound move{parsedMoves.compounds.length === 1 ? '' : 's'} loaded.
-            Selectors support <code>top</code>, <code>bottom</code>, <code>index</code>, and <code>specific_id</code>.
+            One compound per line: <code>NAME: src tgt, src tgt, …</code>
+            {' '}Slots are integers; each move sends the strand in slot <em>src</em> to the empty slot <em>tgt</em>.
           </p>
-        )}
-        {simulation.errors.length > 0 ? (
-          <div className="error-list">
-            {simulation.errors.map(error => <div key={error}>{error}</div>)}
+          {parsedDefs.errors.length > 0 ? (
+            <div className="error-list">
+              {parsedDefs.errors.map(error => <div key={error}>{error}</div>)}
+            </div>
+          ) : (
+            <p className="note">{Object.keys(parsedDefs.definitions).length} compound(s) defined.</p>
+          )}
+        </section>
+
+        <section className="panel">
+          <div className="panel-header">
+            <h2>Sequence</h2>
           </div>
-        ) : null}
-      </section>
+          <textarea
+            className="code-editor"
+            value={sequenceText}
+            onChange={event => setSequenceText(event.target.value)}
+            spellCheck={false}
+            aria-label="Compound sequence"
+          />
+          <p className="note">
+            Comma-separated list of compound invocations: <code>A</code>, <code>A[4]</code>, <code>B[8]</code>, …
+            {' '}An optional <code>[offset]</code> shifts every slot number in that compound by the given amount.
+          </p>
+          {parsedSeq.errors.length > 0 ? (
+            <div className="error-list">
+              {parsedSeq.errors.map(error => <div key={error}>{error}</div>)}
+            </div>
+          ) : (
+            <p className="note">{parsedSeq.sequence.length} step(s) in sequence.</p>
+          )}
+          {resolvedCompounds.errors.length > 0 ? (
+            <div className="error-list">
+              {resolvedCompounds.errors.map(error => <div key={error}>{error}</div>)}
+            </div>
+          ) : null}
+        </section>
+      </div>
+
+      {simulation.errors.length > 0 ? (
+        <div className="error-list">
+          {simulation.errors.map(error => <div key={error}>{error}</div>)}
+        </div>
+      ) : null}
 
       <div className="kumihimo-grid">
         <section className="panel">
@@ -256,7 +285,7 @@ export default function KumihimoPage() {
           <TwistTrace history={simulation.twistHistory} />
           <div className="metric-grid">
             <Metric label="Current twist" value={formatNumber(snapshot?.twist ?? 0)} />
-            <Metric label="Per period" value={formatNumber(simulation.diagnostics.periodTwist)} />
+            <Metric label="Total" value={formatNumber(simulation.diagnostics.periodTwist)} />
             <Metric label="Avg / compound" value={formatNumber(simulation.diagnostics.averageTwistPerCompound)} />
             <Metric label="Residual max" value={formatNumber(simulation.diagnostics.residualTwistMax)} />
           </div>
@@ -344,7 +373,7 @@ function KumihimoDisk({
   strands: StrandSpec[];
   slotCount: number;
 }) {
-  const strandLookup = new Map(strands.map(strand => [strand.id, strand]));
+  const strandLookup = useMemo(() => new Map(strands.map(strand => [strand.id, strand])), [strands]);
 
   return (
     <svg width={DISK_SIZE} height={DISK_SIZE} viewBox={`0 0 ${DISK_SIZE} ${DISK_SIZE}`} className="kumihimo-disk">
@@ -352,32 +381,20 @@ function KumihimoDisk({
       <circle cx={DISK_SIZE / 2} cy={DISK_SIZE / 2} r={52} fill="var(--bg)" stroke="var(--border)" />
       {snapshot.slots.map(slot => {
         const position = polar(slot.slotIndex, slotCount, RING_RADIUS);
+        const strandId = slot.strands[0] ?? null;
+        const strand = strandId !== null ? strandLookup.get(strandId) : undefined;
         return (
           <g key={slot.slotIndex}>
             <circle
               cx={position.x}
               cy={position.y}
               r={12}
-              fill={slot.strands.length > 0 ? 'var(--bg)' : 'transparent'}
+              fill={strand ? strand.color : 'transparent'}
               stroke="var(--border)"
             />
             <text x={position.x} y={position.y - 18} textAnchor="middle" className="slot-label">
               {slot.slotIndex}
             </text>
-            {slot.strands.map((strandId, stackIndex) => {
-              const strand = strandLookup.get(strandId);
-              return (
-                <circle
-                  key={strandId}
-                  cx={position.x}
-                  cy={position.y - stackIndex * 5}
-                  r={6}
-                  fill={strand?.color ?? '#999999'}
-                  stroke="var(--fg)"
-                  strokeWidth={1}
-                />
-              );
-            })}
           </g>
         );
       })}
