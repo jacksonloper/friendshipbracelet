@@ -3,10 +3,6 @@ import {
   KumihimoConfig,
   StepSnapshot,
   StrandSpec,
-  createDefaultDefinitionsText,
-  createDefaultKumihimoConfig,
-  createDefaultSequenceText,
-  createDefaultStrands,
   createEdoYatsuGumiPreset,
   createKongoKumiPreset,
   parseDefinitions,
@@ -22,10 +18,10 @@ const CHART_PADDING = 10;
 const CHART_INSET = CHART_PADDING * 2;
 
 export default function KumihimoPage() {
-  const [config, setConfig] = useState<KumihimoConfig>(createDefaultKumihimoConfig);
-  const [strands, setStrands] = useState<StrandSpec[]>(() => createDefaultStrands(16, 8).map((s, i) => ({ ...s, slot: i * 2 })));
-  const [definitionsText, setDefinitionsText] = useState(createDefaultDefinitionsText);
-  const [sequenceText, setSequenceText] = useState(createDefaultSequenceText);
+  const [config, setConfig] = useState<KumihimoConfig>(() => createEdoYatsuGumiPreset().config);
+  const [strands, setStrands] = useState<StrandSpec[]>(() => createEdoYatsuGumiPreset().strands);
+  const [definitionsText, setDefinitionsText] = useState(() => createEdoYatsuGumiPreset().definitionsText);
+  const [sequenceText, setSequenceText] = useState(() => createEdoYatsuGumiPreset().sequenceText);
   const [selectedStep, setSelectedStep] = useState(0);
 
   const parsedDefs = useMemo(() => parseDefinitions(definitionsText, config.slotCount), [definitionsText, config.slotCount]);

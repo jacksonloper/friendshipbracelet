@@ -193,6 +193,11 @@ export function createDefaultSequenceText(): string {
   return 'A, A[1], A, A[1], A, A[1], A, A[1]';
 }
 
+// Place strands at every other slot (even indices), leaving odd slots empty for moves.
+function createEvenSlotStrands(slotCount: number, strandCount: number): StrandSpec[] {
+  return createDefaultStrands(slotCount, strandCount).map((strand, i) => ({ ...strand, slot: i * 2 }));
+}
+
 export function createEdoYatsuGumiPreset(): {
   config: KumihimoConfig;
   strands: StrandSpec[];
@@ -200,7 +205,7 @@ export function createEdoYatsuGumiPreset(): {
   sequenceText: string;
 } {
   const config: KumihimoConfig = { slotCount: 16, strandCount: 8, centerScale: 1, twistScale: 0.25 };
-  const strands = createDefaultStrands(16, 8).map((strand, i) => ({ ...strand, slot: i * 2 }));
+  const strands = createEvenSlotStrands(16, 8);
   const definitionsText = 'A: 0 3, 2 5, 4 7, 6 9, 8 11, 10 13, 12 15, 14 1';
   const sequenceText = 'A, A[1], A, A[1], A, A[1], A, A[1]';
   return { config, strands, definitionsText, sequenceText };
@@ -213,7 +218,7 @@ export function createKongoKumiPreset(): {
   sequenceText: string;
 } {
   const config: KumihimoConfig = { slotCount: 32, strandCount: 16, centerScale: 1, twistScale: 0.25 };
-  const strands = createDefaultStrands(32, 16).map((strand, i) => ({ ...strand, slot: i * 2 }));
+  const strands = createEvenSlotStrands(32, 16);
   const definitionsText = [
     'A: 0 5, 4 9, 8 13, 12 17, 16 21, 20 25, 24 29, 28 1',
     'B: 5 8, 9 12, 13 16, 17 20, 21 24, 25 28, 29 0, 1 4',
@@ -468,7 +473,7 @@ export function simulateKumihimo(
         });
       }
 
-      slots[source].strands.length = 0;
+      slots[source].strands = [];
       slots[target].strands.push(strandId);
 
       const strand = strands.get(strandId);
