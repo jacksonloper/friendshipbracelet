@@ -152,7 +152,7 @@ export default function KumihimoPage() {
             </label>
           </div>
           <p className="note">
-            The simulator uses the chord-midpoint center model and the crossing-order twist estimate from <code>kumihimo_plan.txt</code>.
+            The simulator uses the plan&apos;s chord-midpoint center estimate and crossing-order twist heuristic to highlight drift and rotation over repeated compound moves.
           </p>
         </section>
 
@@ -396,6 +396,7 @@ function CenterTrace({ history }: { history: { x: number; y: number }[] }) {
   const radius = 78;
   const maxValue = history.reduce((max, point) => Math.max(max, Math.abs(point.x), Math.abs(point.y)), 1);
   const scale = radius / maxValue;
+  const lastPoint = history[history.length - 1];
   const path = history
     .map((point, index) => `${index === 0 ? 'M' : 'L'} ${center + point.x * scale} ${center - point.y * scale}`)
     .join(' ');
@@ -406,10 +407,10 @@ function CenterTrace({ history }: { history: { x: number; y: number }[] }) {
       <line x1={center} y1={12} x2={center} y2={168} stroke="var(--border)" />
       <line x1={12} y1={center} x2={168} y2={center} stroke="var(--border)" />
       <path d={path} fill="none" stroke="var(--accent)" strokeWidth={2.5} />
-      {history.length > 0 ? (
+      {lastPoint ? (
         <circle
-          cx={center + history[history.length - 1].x * scale}
-          cy={center - history[history.length - 1].y * scale}
+          cx={center + lastPoint.x * scale}
+          cy={center - lastPoint.y * scale}
           r={3.5}
           fill="var(--accent)"
         />

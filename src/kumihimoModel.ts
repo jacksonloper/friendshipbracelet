@@ -120,6 +120,7 @@ export interface KumihimoSimulationResult {
   executedCompounds: number;
 }
 
+const FULL_TURN = 2 * Math.PI;
 const DEFAULT_COLORS = [
   '#ef4444',
   '#f97316',
@@ -175,16 +176,16 @@ export function createDefaultKumihimoConfig(): KumihimoConfig {
 }
 
 export function createDefaultStrands(slotCount: number, strandCount: number): StrandSpec[] {
-  const safeSlotCount = Math.max(4, slotCount);
-  const safeStrandCount = Math.max(4, strandCount - (strandCount % 4));
-  const groupSize = safeStrandCount / 4;
-  const anchors = [0, safeSlotCount / 4, safeSlotCount / 2, (3 * safeSlotCount) / 4];
-  const slots = anchors.flatMap(anchor => offsetsForGroup(anchor, groupSize, safeSlotCount));
+  const normalizedSlotCount = Math.max(4, slotCount);
+  const normalizedStrandCount = Math.max(4, strandCount - (strandCount % 4));
+  const groupSize = normalizedStrandCount / 4;
+  const anchors = [0, normalizedSlotCount / 4, normalizedSlotCount / 2, (3 * normalizedSlotCount) / 4];
+  const slots = anchors.flatMap(anchor => offsetsForGroup(anchor, groupSize, normalizedSlotCount));
 
-  return Array.from({ length: safeStrandCount }, (_, index) => ({
+  return Array.from({ length: normalizedStrandCount }, (_, index) => ({
     id: index,
     color: DEFAULT_COLORS[index % DEFAULT_COLORS.length],
-    slot: normalizeSlot(slots[index] ?? index, safeSlotCount),
+    slot: normalizeSlot(slots[index] ?? index, normalizedSlotCount),
   }));
 }
 
@@ -508,7 +509,7 @@ function normalizeSlot(slot: number, slotCount: number): number {
 }
 
 function slotVector(slot: number, slotCount: number): Vector2 {
-  const angle = (2 * Math.PI * normalizeSlot(slot, slotCount)) / slotCount;
+  const angle = (FULL_TURN * normalizeSlot(slot, slotCount)) / slotCount;
   return { x: Math.cos(angle), y: Math.sin(angle) };
 }
 
@@ -545,24 +546,22 @@ function visibleAngle(source: number, target: number, twist: number, slotCount: 
   const baseAngle = Math.abs(midpoint.x) < 1e-9 && Math.abs(midpoint.y) < 1e-9
     ? Math.atan2(direction.y, direction.x)
     : Math.atan2(midpoint.y, midpoint.x);
-  return wrapAngle(baseAngle + 2 * Math.PI * twist);
+  return wrapAngle(baseAngle + FULL_TURN * twist);
 }
 
 function angularDifference(source: number, target: number, slotCount: number): number {
-  const sourceAngle = (2 * Math.PI * source) / slotCount;
-  const targetAngle = (2 * Math.PI * target) / slotCount;
+  const sourceAngle = (FULL_TURN * source) / slotCount;
+  const targetAngle = (FULL_TURN * target) / slotCount;
   return wrapSignedAngle(targetAngle - sourceAngle);
 }
 
 function wrapAngle(angle: number): number {
-  const fullTurn = 2 * Math.PI;
-  return ((angle % fullTurn) + fullTurn) % fullTurn;
+  return ((angle % FULL_TURN) + FULL_TURN) % FULL_TURN;
 }
 
 function wrapSignedAngle(angle: number): number {
-  const fullTurn = 2 * Math.PI;
-  let wrapped = ((angle + Math.PI) % fullTurn + fullTurn) % fullTurn - Math.PI;
-  if (wrapped <= -Math.PI) wrapped += fullTurn;
+  let wrapped = ((angle + Math.PI) % FULL_TURN + FULL_TURN) % FULL_TURN - Math.PI;
+  if (wrapped <= -Math.PI) wrapped += FULL_TURN;
   return wrapped;
 }
 
@@ -705,11 +704,11 @@ function buildDiagnostics(args: {
     }
     return maxGap;
   });
-  const averageMoves = strands.size === 0
+  const averageMoveCount = strands.size === 0
     ? 0
     : Array.from(strands.values()).reduce((sum, strand) => sum + strand.moveCount, 0) / strands.size;
   const overused = Array.from(strands.values())
-    .filter(strand => strand.moveCount > averageMoves * OVERUSE_THRESHOLD && strand.moveCount > 0)
+    .filter(strand => strand.moveCount > averageMoveCount * OVERUSE_THRESHOLD && strand.moveCount > 0)
     .map(strand => strand.id);
   const neverMoved = Array.from(strands.values())
     .filter(strand => strand.moveCount === 0)
