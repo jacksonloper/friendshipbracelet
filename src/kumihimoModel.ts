@@ -205,9 +205,18 @@ export function createEdoYatsuGumiPreset(): {
   sequenceText: string;
 } {
   const config: KumihimoConfig = { slotCount: 16, strandCount: 8, centerScale: 1, twistScale: 0.25 };
-  const strands = createEvenSlotStrands(16, 8);
-  const definitionsText = 'A: 0 3, 2 5, 4 7, 6 9, 8 11, 10 13, 12 15, 14 1';
-  const sequenceText = 'A, A[1], A, A[1], A, A[1], A, A[1]';
+  // 8 strands in 4 pairs, one pair at each cardinal gate.
+  // The "right" strand of every pair (slots 1, 5, 9, 13) travels clockwise.
+  // The "left" strand of every pair (slots 0, 4, 8, 12) travels counterclockwise.
+  // Compound A interleaves CW(+2) and CCW(-2) elementary moves so no slot is
+  // ever doubly-occupied mid-compound.  A[2] is the same pattern offset by 2
+  // slots, which is the state the disk is in after A completes.
+  // Over each A + A[2] cycle the CW family net-advances +4 slots and the CCW
+  // family net-retreats -4 slots, creating the characteristic opposing helices.
+  const slotMap = [0, 1, 4, 5, 8, 9, 12, 13];
+  const strands = createDefaultStrands(16, 8).map((strand, i) => ({ ...strand, slot: slotMap[i] }));
+  const definitionsText = 'A: 1 3, 0 14, 5 7, 4 2, 9 11, 8 6, 13 15, 12 10';
+  const sequenceText = 'A, A[2], A, A[2], A, A[2], A, A[2]';
   return { config, strands, definitionsText, sequenceText };
 }
 
