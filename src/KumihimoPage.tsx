@@ -15,6 +15,8 @@ import {
 
 const DISK_SIZE = 360;
 const RING_RADIUS = 132;
+const CHART_PADDING = 10;
+const CHART_INSET = CHART_PADDING * 2;
 
 export default function KumihimoPage() {
   const [config, setConfig] = useState<KumihimoConfig>(createDefaultKumihimoConfig);
@@ -424,16 +426,18 @@ function TwistTrace({ history }: { history: number[] }) {
   const range = Math.max(max - min, 1);
   const path = history
     .map((value, index) => {
-      const x = history.length === 1 ? 0 : (index / (history.length - 1)) * (width - 20) + 10;
-      const y = height - 10 - ((value - min) / range) * (height - 20);
+      const x = history.length === 1
+        ? CHART_PADDING
+        : (index / (history.length - 1)) * (width - CHART_INSET) + CHART_PADDING;
+      const y = height - CHART_PADDING - ((value - min) / range) * (height - CHART_INSET);
       return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
     })
     .join(' ');
-  const zeroY = height - 10 - ((0 - min) / range) * (height - 20);
+  const zeroY = height - CHART_PADDING - ((0 - min) / range) * (height - CHART_INSET);
 
   return (
     <svg width="100%" viewBox={`0 0 ${width} ${height}`} className="trace-svg">
-      <line x1={10} y1={zeroY} x2={width - 10} y2={zeroY} stroke="var(--border)" />
+      <line x1={CHART_PADDING} y1={zeroY} x2={width - CHART_PADDING} y2={zeroY} stroke="var(--border)" />
       <path d={path} fill="none" stroke="var(--accent-2)" strokeWidth={2.5} />
     </svg>
   );
@@ -476,5 +480,5 @@ function polar(slotIndex: number, slotCount: number, radius: number) {
 }
 
 function formatNumber(value: number): string {
-  return Number.isFinite(value) ? value.toFixed(2) : '0.00';
+  return Number.isFinite(value) ? value.toFixed(2) : '—';
 }

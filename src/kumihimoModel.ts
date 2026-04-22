@@ -138,6 +138,7 @@ const DEFAULT_COLORS = [
   '#78716c',
   '#0f766e',
 ];
+const OVERUSE_THRESHOLD = 1.5;
 
 const EMPTY_DIAGNOSTICS: KumihimoDiagnostics = {
   slotDelta: [],
@@ -708,7 +709,7 @@ function buildDiagnostics(args: {
     ? 0
     : Array.from(strands.values()).reduce((sum, strand) => sum + strand.moveCount, 0) / strands.size;
   const overused = Array.from(strands.values())
-    .filter(strand => strand.moveCount > averageMoves * 1.5 && strand.moveCount > 0)
+    .filter(strand => strand.moveCount > averageMoves * OVERUSE_THRESHOLD && strand.moveCount > 0)
     .map(strand => strand.id);
   const neverMoved = Array.from(strands.values())
     .filter(strand => strand.moveCount === 0)
