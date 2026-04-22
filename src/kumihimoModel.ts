@@ -204,19 +204,19 @@ export function createEdoYatsuGumiPreset(): {
   definitionsText: string;
   sequenceText: string;
 } {
-  const config: KumihimoConfig = { slotCount: 16, strandCount: 8, centerScale: 1, twistScale: 0.25 };
-  // 8 strands in 4 pairs, one pair at each cardinal gate.
-  // The "right" strand of every pair (slots 1, 5, 9, 13) travels clockwise.
-  // The "left" strand of every pair (slots 0, 4, 8, 12) travels counterclockwise.
-  // Compound A interleaves CW(+2) and CCW(-2) elementary moves so no slot is
-  // ever doubly-occupied mid-compound.  A[2] is the same pattern offset by 2
-  // slots, which is the state the disk is in after A completes.
-  // Over each A + A[2] cycle the CW family net-advances +4 slots and the CCW
-  // family net-retreats -4 slots, creating the characteristic opposing helices.
-  const slotMap = [0, 1, 4, 5, 8, 9, 12, 13];
-  const strands = createDefaultStrands(16, 8).map((strand, i) => ({ ...strand, slot: slotMap[i] }));
-  const definitionsText = 'A: 1 3, 0 14, 5 7, 4 2, 9 11, 8 6, 13 15, 12 10';
-  const sequenceText = 'A, A[2], A, A[2], A, A[2], A, A[2]';
+  const config: KumihimoConfig = { slotCount: 32, strandCount: 8, centerScale: 1, twistScale: 0.25 };
+  // 8 strands in 4 pairs at cardinal gates on a 32-slot disk.
+  // Starting slots: N={0,1}, E={8,9}, S={16,17}, W={24,25}.
+  // CW family (0, 8, 16, 24) advances +8 per compound; CCW family (1, 9, 17, 25) retreats -8 per compound.
+  // The compound has 12 sequential moves: 8 main moves (4 CW by +7, 2 CW by +8 direct,
+  // 2 CCW by -8 direct, 2 CCW by -7) plus 4 adjustment moves (+1 or -1) that bring the
+  // ±7 half-steps to their final ±8 net positions.  No rotation offset is needed since
+  // the disk returns to the same occupied slot configuration after every compound.
+  const slotMap = [0, 1, 8, 9, 16, 17, 24, 25];
+  const strands = createDefaultStrands(32, 8).map((strand, i) => ({ ...strand, slot: slotMap[i] }));
+  const definitionsText =
+    'A: 0 7, 16 23, 8 16, 24 0, 1 26, 17 10, 25 17, 9 1, 7 8, 23 24, 26 25, 10 9';
+  const sequenceText = 'A, A, A, A, A, A, A, A';
   return { config, strands, definitionsText, sequenceText };
 }
 
