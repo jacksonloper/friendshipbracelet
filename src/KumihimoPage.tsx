@@ -15,7 +15,7 @@ const DISK_SIZE = 360;
 const RING_RADIUS = 130;
 const MIN_SLOT_RADIUS = 9;
 const MAX_SLOT_RADIUS = 16;
-const SLOT_RADIUS_BASELINE = 42;
+const SLOT_RADIUS_SCALE_FACTOR = 42;
 
 export default function KumihimoPage() {
   const [strands, setStrands] = useState<StrandSpec[]>(() => createDefaultStrands(DEFAULT_STRAND_COUNT));
@@ -196,7 +196,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 function KongoDisk({ snapshot }: { snapshot: KongoSnapshot }) {
   const slotRadius = Math.max(
     MIN_SLOT_RADIUS,
-    Math.min(MAX_SLOT_RADIUS, SLOT_RADIUS_BASELINE - snapshot.slots.length),
+    Math.min(MAX_SLOT_RADIUS, SLOT_RADIUS_SCALE_FACTOR - snapshot.slots.length),
   );
 
   return (
