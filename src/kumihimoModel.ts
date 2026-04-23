@@ -271,9 +271,13 @@ function buildSCrossPerm(strandCount: number): number[] {
 
 /**
  * Counter-clockwise disk rotation by 2 positions.
- * Each strand at slot i moves CCW to slot (i - 2 + n) % n.
- * In perm[dest] = src notation: dest j gets the strand from src (j + 2) % n.
- * perm[i] = (i + 2) % n
+ *
+ * Strand at slot `src` moves CCW to slot `dest = (src - 2 + n) % n`.
+ * In perm[dest] = src notation: dest `j` sources from `(j + 2) % n`.
+ *   → perm[i] = (i + 2) % n
+ *
+ * Verification for n=8: perm[6] = 0, meaning slot 6 receives the strand
+ * from slot 0.  The strand moved from slot 0 to slot 6 = (0 - 2 + 8) % 8. ✓
  */
 function buildRotateCCWPerm(strandCount: number): number[] {
   return Array.from({ length: strandCount }, (_, i) => (i + 2) % strandCount);

@@ -234,9 +234,10 @@ function KongoDisk({
     }
 
     // Force a synchronous layout so the browser registers the "from" position
-    // before we set the transition.  Reading any layout property is sufficient.
+    // before we set the transition.  Reading ANY layout property on any element
+    // in the document forces a full synchronous reflow, so one call is enough.
     const firstEl = nodeRefs.current.values().next().value as SVGGElement | undefined;
-    firstEl?.getBoundingClientRect();
+    void firstEl?.getBoundingClientRect();
 
     // Step 2 — animate every strand to its CURRENT slot position.
     for (const [id, el] of nodeRefs.current) {
@@ -247,7 +248,9 @@ function KongoDisk({
         el.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
       }
     }
-  }, [snapshot.subStep, slotPositions]);   // run on every step or strand-count change
+    // Include both snapshot objects so the effect re-runs when strand colors change
+    // (which produces a new simulation object with the same subStep value).
+  }, [snapshot, previousSnapshot, slotPositions]);
 
   // For drawing motion-trail arrows (purely decorative).
   const previousSlotLookup = useMemo(
@@ -533,8 +536,7 @@ function KumihimoBraceletPattern({ initialStrands }: { initialStrands: StrandSpe
 
   const pattern = useMemo(
     () => computeKumihimoPattern(initialStrands, NR),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [initialStrands.map(s => s.color).join(','), NR],
+    [initialStrands, NR],
   );
 
   const svgWidth = (2 * W + 3) * r;
