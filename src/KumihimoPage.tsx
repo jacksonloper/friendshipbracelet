@@ -422,8 +422,6 @@ function formatRole(role: KongoActionParticipant['role']): string {
       return 'Left down';
     case 'rightDown':
       return 'Right down';
-    default:
-      return role;
   }
 }
 

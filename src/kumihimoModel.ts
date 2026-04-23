@@ -295,9 +295,5 @@ function popAt(slots: number[], index: number, label: string): number {
   if (index < 0 || index >= slots.length) {
     throw new Error(`Unable to remove the ${label} strand at slot index ${index}.`);
   }
-  const value = slots.splice(index, 1)[0];
-  if (value === undefined) {
-    throw new Error(`Unable to remove the ${label} strand at slot index ${index}.`);
-  }
-  return value;
+  return slots.splice(index, 1)[0] as number;
 }
