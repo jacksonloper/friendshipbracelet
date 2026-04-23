@@ -243,7 +243,12 @@ function switchPerm(strandCount: number): number[] {
 
   const perm = Array.from({ length: strandCount }, (_, index) => index);
   for (let index = 0; index < strandCount; index += 2) {
-    [perm[index], perm[index + 1]] = [perm[index + 1], perm[index]];
+    const first = perm[index];
+    const second = perm[index + 1];
+    if (first === undefined || second === undefined) {
+      throw new Error(`Unable to swap pair starting at slot index ${index}.`);
+    }
+    [perm[index], perm[index + 1]] = [second, first];
   }
   return perm;
 }

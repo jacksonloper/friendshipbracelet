@@ -242,7 +242,7 @@ function PatternTimeline({ snapshots }: { snapshots: KongoSnapshot[] }) {
             <div
               key={`${snapshot.step}-${pair.pairIndex}`}
               className="kongo-pair-cell"
-              title={`Pair ${pair.pairIndex + 1}: slots ${pair.slotA} and ${pair.slotB}`}
+              title={`pair ${pair.pairIndex + 1}: slots ${pair.slotA} and ${pair.slotB}`}
             >
               <span className="kongo-pair-half" style={{ backgroundColor: pair.first.color }} aria-hidden="true" />
               <span className="kongo-pair-half" style={{ backgroundColor: pair.second.color }} aria-hidden="true" />
