@@ -194,7 +194,12 @@ function applyPerm<T>(items: readonly T[], perm: readonly number[]): T[] {
     throw new Error('Permutation length does not match item length.');
   }
 
-  return perm.map(sourceIndex => items[sourceIndex] as T);
+  return perm.map(sourceIndex => {
+    if (sourceIndex < 0 || sourceIndex >= items.length) {
+      throw new Error(`Permutation index ${sourceIndex} is out of bounds.`);
+    }
+    return items[sourceIndex] as T;
+  });
 }
 
 function zUnitPerm(strandCount: number): number[] {
@@ -203,10 +208,10 @@ function zUnitPerm(strandCount: number): number[] {
   }
 
   const slots = Array.from({ length: strandCount }, (_, index) => index);
-  const topRight = slots.splice(1, 1)[0];
+  const topRight = popAt(slots, 1, 'top-right');
   slots.splice(strandCount / 2 + 1, 0, topRight);
 
-  const bottomLeft = slots.splice(strandCount / 2 - 1, 1)[0];
+  const bottomLeft = popAt(slots, strandCount / 2 - 1, 'bottom-left');
   slots.splice(0, 0, bottomLeft);
 
   const quarterTurn = strandCount / 4;
@@ -219,10 +224,10 @@ function sUnitPerm(strandCount: number): number[] {
   }
 
   const slots = Array.from({ length: strandCount }, (_, index) => index);
-  const topLeft = slots.splice(0, 1)[0];
+  const topLeft = popAt(slots, 0, 'top-left');
   slots.splice(strandCount / 2, 0, topLeft);
 
-  const bottomRight = slots.splice(strandCount / 2 + 1, 1)[0];
+  const bottomRight = popAt(slots, strandCount / 2 + 1, 'bottom-right');
   slots.splice(1, 0, bottomRight);
 
   const quarterTurn = strandCount / 4;
@@ -239,4 +244,12 @@ function switchPerm(strandCount: number): number[] {
     [perm[index], perm[index + 1]] = [perm[index + 1] as number, perm[index] as number];
   }
   return perm;
+}
+
+function popAt(slots: number[], index: number, label: string): number {
+  const value = slots.splice(index, 1)[0];
+  if (value === undefined) {
+    throw new Error(`Unable to remove ${label} strand at slot index ${index}.`);
+  }
+  return value;
 }
