@@ -210,10 +210,11 @@ function KongoDisk({
   snapshot: KongoSnapshot;
   previousSnapshot: KongoSnapshot;
 }) {
-  const scaledRadius = SLOT_RADIUS_SCALE_FACTOR - snapshot.slots.length;
+  // Intermediate value before min/max clamping; inversely proportional to strand count.
+  const unclamped = SLOT_RADIUS_SCALE_FACTOR - snapshot.slots.length;
   const slotRadius = Math.max(
     MIN_SLOT_RADIUS,
-    Math.min(MAX_SLOT_RADIUS, scaledRadius),
+    Math.min(MAX_SLOT_RADIUS, unclamped),
   );
   const n = snapshot.slots.length;
   const half = n / 2;
@@ -287,6 +288,9 @@ function KongoDisk({
         if (!nextPosition) {
           return null;
         }
+        // Fall back to `index` (no movement) when the strand didn't exist in the previous
+        // snapshot. In this simulation every strand always exists in every snapshot, so this
+        // path is only taken at sub-step 0 (Start) where previousSnapshot === snapshot.
         const previousIndex = previousSlotLookup.get(strand.id) ?? index;
         const previousPosition = slotPositions[previousIndex] ?? nextPosition;
         const relativeTrailX = previousPosition.x - nextPosition.x;
