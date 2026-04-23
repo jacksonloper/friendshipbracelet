@@ -492,6 +492,113 @@ code {
   display: inline-block;
 }
 
+.sequence-editor {
+  width: 100%;
+  min-height: 96px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  resize: vertical;
+}
+
+.strand-editor-row strong {
+  margin-left: auto;
+  font-size: 0.85rem;
+}
+
+.kongo-disk {
+  display: block;
+  width: 100%;
+}
+
+.kongo-slot-label,
+.kongo-center-label {
+  fill: var(--fg);
+  font-size: 10px;
+}
+
+.kongo-pattern-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.kongo-pattern-row {
+  display: flex;
+  gap: 6px;
+  min-width: max-content;
+}
+
+.kongo-step-label {
+  width: 92px;
+  min-width: 92px;
+  padding: 10px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+}
+
+.kongo-pair-cell {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.kongo-pair-half {
+  display: block;
+}
+
+.kongo-slot-strip,
+.kongo-pair-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.kongo-slot-chip,
+.kongo-final-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 0.84rem;
+}
+
+.kongo-pair-list {
+  margin-top: 12px;
+}
+
+.kongo-swatch,
+.kongo-pair-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid var(--fg);
+  display: inline-block;
+}
+
+.kongo-pair-stack {
+  display: inline-flex;
+  gap: 4px;
+}
+
 @media (max-width: 640px) {
   body {
     padding: 12px;
