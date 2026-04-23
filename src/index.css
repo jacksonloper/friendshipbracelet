@@ -557,58 +557,6 @@ code {
   pointer-events: none;
 }
 
-.kongo-pattern-table {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  overflow-x: auto;
-}
-
-.kongo-pattern-row-button {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-
-.kongo-pattern-row-button.active .kongo-step-label,
-.kongo-pattern-row-button.active .kongo-pair-cell {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
-}
-
-.kongo-pattern-row {
-  display: flex;
-  gap: 6px;
-  min-width: max-content;
-}
-
-.kongo-step-label {
-  width: 116px;
-  min-width: 116px;
-  padding: 10px 8px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  font-size: 0.78rem;
-  display: flex;
-  align-items: center;
-}
-
-/* Sub-step kind colouring on step labels */
-.kongo-step-label.kongo-kind-cross {
-  border-left: 3px solid var(--accent);
-}
-
-.kongo-step-label.kongo-kind-rotate {
-  border-left: 3px solid var(--accent-2);
-}
-
-.kongo-step-label.kongo-kind-transition {
-  border-left: 3px solid #f59e0b;
-}
-
 /* Badge shown next to the disk panel title */
 .kongo-kind-badge {
   padding: 3px 10px;
@@ -637,39 +585,6 @@ code {
 .kongo-action-move {
   font-size: 0.78rem;
   opacity: 0.7;
-}
-
-.kongo-pair-cell {
-  width: 34px;
-  min-width: 34px;
-  height: 34px;
-  display: grid;
-  align-content: stretch;
-  grid-template-rows: 1fr 1fr;
-  overflow: hidden;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  position: relative;
-}
-
-.kongo-pair-cell.active {
-  border-color: var(--accent);
-}
-
-.kongo-pair-caption {
-  position: absolute;
-  top: 2px;
-  right: 4px;
-  font-size: 0.58rem;
-  color: var(--fg);
-  background: color-mix(in srgb, var(--bg) 78%, transparent);
-  border-radius: 999px;
-  padding: 0 3px;
-}
-
-.kongo-pair-half {
-  display: block;
 }
 
 .kongo-slot-strip,

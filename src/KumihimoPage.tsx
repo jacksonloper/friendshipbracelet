@@ -151,7 +151,7 @@ export default function KumihimoPage() {
               onChange={event => setSelectedStep(parseInt(event.target.value, 10))}
             />
           </label>
-          <KongoDisk snapshot={snapshot} previousSnapshot={previousSnapshot} />
+          <KongoDisk snapshot={snapshot} />
         </section>
 
         <section className="panel">
@@ -160,17 +160,12 @@ export default function KumihimoPage() {
         </section>
       </div>
 
-      <div className="kumihimo-grid">
-        <section className="panel">
-          <h2>Timeline</h2>
-          <PatternTimeline snapshots={simulation.snapshots} selectedStep={selectedStep} onSelectStep={setSelectedStep} />
-        </section>
-
+      {parsedSequence.sequence.length > 0 && parsedSequence.sequence.every(m => m === 'Z') && (
         <section className="panel">
           <h2>Bracelet pattern</h2>
           <KumihimoBraceletPattern initialStrands={strands} />
         </section>
-      </div>
+      )}
     </div>
   );
 }
@@ -184,13 +179,7 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function KongoDisk({
-  snapshot,
-  previousSnapshot,
-}: {
-  snapshot: KongoSnapshot;
-  previousSnapshot: KongoSnapshot;
-}) {
+function KongoDisk({ snapshot }: { snapshot: KongoSnapshot }) {
   // Intermediate value before min/max clamping; inversely proportional to strand count.
   const unclamped = SLOT_RADIUS_SCALE_FACTOR - snapshot.slots.length;
   const slotRadius = Math.max(
@@ -214,16 +203,21 @@ function KongoDisk({
     : new Set<number>();
 
   // ── Animation ────────────────────────────────────────────────────────────
-  // We manage `style.transform` on each strand <g> entirely via DOM refs so
-  // that every step-change animates FROM the correct previous slot position
-  // regardless of how the user navigates the slider.
+  // We track the *last rendered* snapshot in a ref so that animations always
+  // run from wherever strands actually were on screen — regardless of whether
+  // the user navigated forward, backward, or jumped several steps at once.
+  const prevDisplayedRef = useRef<KongoSnapshot>(snapshot);
   const nodeRefs = useRef<Map<number, SVGGElement>>(new Map());
 
   useLayoutEffect(() => {
-    const prevLookup = new Map(previousSnapshot.slots.map((s, i) => [s.id, i]));
+    // "From" is the snapshot that was displayed before this render.
+    // Read it BEFORE updating the ref so the trail lines (rendered above in
+    // JSX using the same ref) also see the correct previous state.
+    const prevSnapshot = prevDisplayedRef.current;
+    const prevLookup = new Map(prevSnapshot.slots.map((s, i) => [s.id, i]));
     const currLookup = new Map(snapshot.slots.map((s, i) => [s.id, i]));
 
-    // Step 1 — snap every strand to its PREVIOUS slot position (no transition).
+    // Step 1 — snap every strand to its PREVIOUS displayed slot position (no transition).
     for (const [id, el] of nodeRefs.current) {
       const prevSlot = prevLookup.get(id) ?? currLookup.get(id) ?? 0;
       const pos = slotPositions[prevSlot];
@@ -233,9 +227,8 @@ function KongoDisk({
       }
     }
 
-    // Force a synchronous layout so the browser registers the "from" position
-    // before we set the transition.  Reading ANY layout property on any element
-    // in the document forces a full synchronous reflow, so one call is enough.
+    // Force a synchronous reflow so the browser registers the "from" position
+    // before we re-enable the transition.
     const firstEl = nodeRefs.current.values().next().value as SVGGElement | undefined;
     void firstEl?.getBoundingClientRect();
 
@@ -248,14 +241,17 @@ function KongoDisk({
         el.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
       }
     }
-    // Include both snapshot objects so the effect re-runs when strand colors change
-    // (which produces a new simulation object with the same subStep value).
-  }, [snapshot, previousSnapshot, slotPositions]);
 
-  // For drawing motion-trail arrows (purely decorative).
-  const previousSlotLookup = useMemo(
-    () => new Map(previousSnapshot.slots.map((s, i) => [s.id, i])),
-    [previousSnapshot.slots],
+    // Record this snapshot as "previous" for the next render.
+    prevDisplayedRef.current = snapshot;
+  }, [snapshot, slotPositions]);
+
+  // For drawing motion-trail lines (decorative): use the last-displayed snapshot
+  // as captured by prevDisplayedRef.  Since refs don't trigger re-renders, this
+  // will correctly reflect the OLD value during the render phase (before the
+  // layout effect above runs and updates it).
+  const prevDisplayedLookup = new Map(
+    prevDisplayedRef.current.slots.map((s, i) => [s.id, i]),
   );
 
   return (
@@ -315,7 +311,7 @@ function KongoDisk({
       {/* Strand dots – positions driven by useLayoutEffect above (no style prop here). */}
       {snapshot.slots.map((strand, index) => {
         // Trail line: drawn relative to the strand's current position.
-        const previousIndex = previousSlotLookup.get(strand.id) ?? index;
+        const previousIndex = prevDisplayedLookup.get(strand.id) ?? index;
         const currPos = slotPositions[index];
         const prevPos = slotPositions[previousIndex] ?? currPos;
         const showTrail = snapshot.subStep > 0 && previousIndex !== index && currPos && prevPos;
@@ -445,48 +441,6 @@ function KongoSubStepCard({
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function PatternTimeline({
-  snapshots,
-  selectedStep,
-  onSelectStep,
-}: {
-  snapshots: KongoSnapshot[];
-  selectedStep: number;
-  onSelectStep: (step: number) => void;
-}) {
-  return (
-    <div className="kongo-pattern-table">
-      {snapshots.map(snapshot => (
-        <button
-          key={snapshot.subStep}
-          type="button"
-          className={`kongo-pattern-row-button${snapshot.subStep === selectedStep ? ' active' : ''}`}
-          onClick={() => onSelectStep(snapshot.subStep)}
-        >
-          <div className="kongo-pattern-row">
-            <div className={`kongo-step-label kongo-kind-${snapshot.kind}`}>{formatStepLabel(snapshot)}</div>
-            {snapshot.pairs.map(pair => {
-              const isActive = snapshot.kind === 'cross' &&
-                (pair.slotA === 0 || pair.slotA === snapshot.slots.length / 2);
-              return (
-                <div
-                  key={`${snapshot.subStep}-${pair.pairIndex}`}
-                  className={`kongo-pair-cell${isActive ? ' active' : ''}`}
-                  title={`pair ${pair.pairIndex + 1}: slots ${pair.slotA} and ${pair.slotB}`}
-                >
-                  <span className="kongo-pair-caption">{pair.pairIndex + 1}</span>
-                  <span className="kongo-pair-half" style={{ backgroundColor: pair.first.color }} aria-hidden="true" />
-                  <span className="kongo-pair-half" style={{ backgroundColor: pair.second.color }} aria-hidden="true" />
-                </div>
-              );
-            })}
-          </div>
-        </button>
-      ))}
     </div>
   );
 }
