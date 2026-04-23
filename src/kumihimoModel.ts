@@ -1,5 +1,4 @@
 export type BraidDirection = 'Z' | 'S';
-export type TransitionDirection = 'ZS' | 'SZ';
 
 export interface StrandSpec {
   id: number;
@@ -14,18 +13,33 @@ export interface KongoPair {
   second: StrandSpec;
 }
 
+export interface KongoActionParticipant {
+  role: 'leftUp' | 'rightUp' | 'leftDown' | 'rightDown';
+  strand: StrandSpec;
+  slot: number;
+  moves: boolean;
+  targetLabel: string;
+}
+
+export interface KongoStepAction {
+  direction: BraidDirection;
+  participants: KongoActionParticipant[];
+  topPairIndex: number;
+  bottomPairIndex: number;
+  rotationSlots: number;
+}
+
 export interface KongoSnapshot {
   step: number;
   move: BraidDirection | null;
-  transition: TransitionDirection | null;
   slots: StrandSpec[];
   pairs: KongoPair[];
+  action: KongoStepAction | null;
 }
 
 export interface KongoSimulationResult {
   snapshots: KongoSnapshot[];
   finalSlots: StrandSpec[];
-  transitionCount: number;
   errors: string[];
 }
 
@@ -104,13 +118,12 @@ export function parseKongoSequence(input: string): { sequence: BraidDirection[];
 export function simulateKongo(strands: StrandSpec[], sequence: readonly BraidDirection[]): KongoSimulationResult {
   const errors = validateStrands(strands);
   const startingSlots = strands.slice();
-  const snapshots: KongoSnapshot[] = [createSnapshot(0, null, null, startingSlots)];
+  const snapshots: KongoSnapshot[] = [createSnapshot(0, null, startingSlots, null)];
 
   if (errors.length > 0) {
     return {
       snapshots,
       finalSlots: startingSlots,
-      transitionCount: 0,
       errors,
     };
   }
@@ -118,30 +131,17 @@ export function simulateKongo(strands: StrandSpec[], sequence: readonly BraidDir
   const strandCount = strands.length;
   const zPerm = zUnitPerm(strandCount);
   const sPerm = sUnitPerm(strandCount);
-  const switchStep = switchPerm(strandCount);
-
   let slots = startingSlots;
-  let previousMove: BraidDirection | null = null;
-  let transitionCount = 0;
 
   sequence.forEach((move, index) => {
-    let transition: TransitionDirection | null = null;
-
-    if (previousMove && previousMove !== move) {
-      slots = applyPerm(slots, switchStep);
-      transition = previousMove === 'Z' ? 'ZS' : 'SZ';
-      transitionCount += 1;
-    }
-
+    const action = createAction(move, slots);
     slots = applyPerm(slots, move === 'Z' ? zPerm : sPerm);
-    snapshots.push(createSnapshot(index + 1, move, transition, slots));
-    previousMove = move;
+    snapshots.push(createSnapshot(index + 1, move, slots, action));
   });
 
   return {
     snapshots,
     finalSlots: slots,
-    transitionCount,
     errors: [],
   };
 }
@@ -157,15 +157,65 @@ function validateStrands(strands: StrandSpec[]): string[] {
 function createSnapshot(
   step: number,
   move: BraidDirection | null,
-  transition: TransitionDirection | null,
   slots: StrandSpec[],
+  action: KongoStepAction | null,
 ): KongoSnapshot {
   return {
     step,
     move,
-    transition,
     slots: slots.slice(),
     pairs: createPairs(slots),
+    action,
+  };
+}
+
+function createAction(direction: BraidDirection, slots: StrandSpec[]): KongoStepAction {
+  const half = Math.floor(slots.length / 2);
+  const quarter = Math.floor(slots.length / 4);
+  const leftUp = slots[0];
+  const rightUp = slots[1];
+  const leftDown = slots[half];
+  const rightDown = slots[half + 1];
+
+  if (!leftUp || !rightUp || !leftDown || !rightDown) {
+    throw new Error('Unable to build a four-strand action from the current slots.');
+  }
+
+  return {
+    direction,
+    topPairIndex: 0,
+    bottomPairIndex: half / 2,
+    rotationSlots: quarter,
+    participants: [
+      {
+        role: 'leftUp',
+        strand: leftUp,
+        slot: 0,
+        moves: direction === 'S',
+        targetLabel: direction === 'S' ? 'left of left down' : 'stays in the active group',
+      },
+      {
+        role: 'rightUp',
+        strand: rightUp,
+        slot: 1,
+        moves: direction === 'Z',
+        targetLabel: direction === 'Z' ? 'right of right down' : 'stays in the active group',
+      },
+      {
+        role: 'leftDown',
+        strand: leftDown,
+        slot: half,
+        moves: direction === 'Z',
+        targetLabel: direction === 'Z' ? 'left of left up' : 'stays in the active group',
+      },
+      {
+        role: 'rightDown',
+        strand: rightDown,
+        slot: half + 1,
+        moves: direction === 'S',
+        targetLabel: direction === 'S' ? 'right of right up' : 'stays in the active group',
+      },
+    ],
   };
 }
 
@@ -210,13 +260,13 @@ function zUnitPerm(strandCount: number): number[] {
   const half = Math.floor(strandCount / 2);
   const quarterTurn = Math.floor(strandCount / 4);
   const slots = Array.from({ length: strandCount }, (_, index) => index);
-  const topRight = popAt(slots, 1, 'top-right');
+  const topRight = popAt(slots, 1, 'right-up');
   slots.splice(half + 1, 0, topRight);
 
-  const bottomLeft = popAt(slots, half - 1, 'bottom-left');
+  const bottomLeft = popAt(slots, half - 1, 'left-down');
   slots.splice(0, 0, bottomLeft);
 
-  return slots.slice(quarterTurn).concat(slots.slice(0, quarterTurn));
+  return rotateCounterclockwise(slots, quarterTurn);
 }
 
 function sUnitPerm(strandCount: number): number[] {
@@ -227,36 +277,23 @@ function sUnitPerm(strandCount: number): number[] {
   const half = Math.floor(strandCount / 2);
   const quarterTurn = Math.floor(strandCount / 4);
   const slots = Array.from({ length: strandCount }, (_, index) => index);
-  const topLeft = popAt(slots, 0, 'top-left');
+  const topLeft = popAt(slots, 0, 'left-up');
   slots.splice(half, 0, topLeft);
 
-  const bottomRight = popAt(slots, half + 1, 'bottom-right');
+  const bottomRight = popAt(slots, half + 1, 'right-down');
   slots.splice(1, 0, bottomRight);
 
-  return slots.slice(quarterTurn).concat(slots.slice(0, quarterTurn));
+  return rotateCounterclockwise(slots, quarterTurn);
 }
 
-function switchPerm(strandCount: number): number[] {
-  if (strandCount % 4 !== 0) {
-    throw new Error('strandCount must be divisible by 4.');
-  }
-
-  const perm = Array.from({ length: strandCount }, (_, index) => index);
-  for (let index = 0; index < strandCount; index += 2) {
-    const first = perm[index];
-    const second = perm[index + 1];
-    if (first === undefined || second === undefined) {
-      throw new Error(`Unable to swap pair starting at slot index ${index}.`);
-    }
-    [perm[index], perm[index + 1]] = [second, first];
-  }
-  return perm;
+function rotateCounterclockwise(items: number[], amount: number): number[] {
+  return items.slice(amount).concat(items.slice(0, amount));
 }
 
 function popAt(slots: number[], index: number, label: string): number {
   const value = slots.splice(index, 1)[0];
   if (value === undefined) {
-    throw new Error(`Unable to remove ${label} strand at slot index ${index}.`);
+    throw new Error(`Unable to remove the ${label} strand at slot index ${index}.`);
   }
   return value;
 }

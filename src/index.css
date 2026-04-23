@@ -515,10 +515,44 @@ code {
   width: 100%;
 }
 
+.kongo-pair-guide {
+  stroke: color-mix(in srgb, var(--accent) 35%, var(--border));
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.kongo-pair-guide.active {
+  stroke: color-mix(in srgb, var(--accent) 70%, var(--border));
+  stroke-width: 13;
+}
+
+.kongo-pair-index,
 .kongo-slot-label,
 .kongo-center-label {
   fill: var(--fg);
   font-size: 10px;
+}
+
+.kongo-center-label.subtle {
+  fill: color-mix(in srgb, var(--fg) 70%, transparent);
+}
+
+.kongo-strand-node {
+  transition: transform 360ms ease, filter 360ms ease;
+}
+
+.kongo-strand-label {
+  fill: white;
+  font-size: 9px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.kongo-motion-trail {
+  stroke: color-mix(in srgb, var(--fg) 20%, transparent);
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+  pointer-events: none;
 }
 
 .kongo-pattern-table {
@@ -526,6 +560,20 @@ code {
   flex-direction: column;
   gap: 8px;
   overflow-x: auto;
+}
+
+.kongo-pattern-row-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kongo-pattern-row-button.active .kongo-step-label,
+.kongo-pattern-row-button.active .kongo-pair-cell {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .kongo-pattern-row {
@@ -551,11 +599,28 @@ code {
   min-width: 34px;
   height: 34px;
   display: grid;
+  align-content: stretch;
   grid-template-rows: 1fr 1fr;
   overflow: hidden;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--bg);
+  position: relative;
+}
+
+.kongo-pair-cell.active {
+  border-color: var(--accent);
+}
+
+.kongo-pair-caption {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 0.58rem;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  border-radius: 999px;
+  padding: 0 3px;
 }
 
 .kongo-pair-half {
@@ -597,6 +662,49 @@ code {
 .kongo-pair-stack {
   display: inline-flex;
   gap: 4px;
+}
+
+.kongo-action-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.kongo-action-summary {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.kongo-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.kongo-action-participant {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.kongo-action-participant.moving {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.kongo-action-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  font-size: 0.82rem;
+  color: color-mix(in srgb, var(--fg) 76%, transparent);
 }
 
 @media (max-width: 640px) {
