@@ -62,7 +62,7 @@ const DEFAULT_COLORS = [
   '#0f766e',
 ];
 
-export function normalizeStrandCount(count: number): number {
+export function ensureStrandCountDivisibleByFour(count: number): number {
   if (!Number.isFinite(count)) return 8;
   const clamped = Math.max(4, Math.round(count));
   const remainder = clamped % 4;
@@ -70,7 +70,7 @@ export function normalizeStrandCount(count: number): number {
 }
 
 export function createDefaultStrands(count: number): StrandSpec[] {
-  const strandCount = normalizeStrandCount(count);
+  const strandCount = ensureStrandCountDivisibleByFour(count);
   return Array.from({ length: strandCount }, (_, index) => ({
     id: index + 1,
     color: DEFAULT_COLORS[index % DEFAULT_COLORS.length],
@@ -78,7 +78,7 @@ export function createDefaultStrands(count: number): StrandSpec[] {
 }
 
 export function resizeStrands(previous: StrandSpec[], count: number): StrandSpec[] {
-  const strandCount = normalizeStrandCount(count);
+  const strandCount = ensureStrandCountDivisibleByFour(count);
   return Array.from({ length: strandCount }, (_, index) => ({
     id: index + 1,
     color: previous[index]?.color ?? DEFAULT_COLORS[index % DEFAULT_COLORS.length],
@@ -244,12 +244,13 @@ function applyPerm<T>(items: readonly T[], perm: readonly number[]): T[] {
     throw new Error('Permutation length does not match item length.');
   }
 
-  return perm.map(sourceIndex => {
+  perm.forEach(sourceIndex => {
     if (sourceIndex < 0 || sourceIndex >= items.length) {
       throw new Error(`Permutation index ${sourceIndex} is out of bounds.`);
     }
-    return items[sourceIndex] as T;
   });
+
+  return perm.map(sourceIndex => items[sourceIndex] as T);
 }
 
 function zUnitPerm(strandCount: number): number[] {

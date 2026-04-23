@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   createDefaultKongoSequence,
   createDefaultStrands,
-  normalizeStrandCount,
+  ensureStrandCountDivisibleByFour,
   parseKongoSequence,
   resizeStrands,
   simulateKongo,
@@ -107,7 +107,7 @@ export default function KumihimoPage() {
             </div>
           ) : null}
           <div className="metric-grid">
-            <Metric label="Normalized count" value={String(normalizeStrandCount(strands.length))} />
+            <Metric label="Normalized count" value={String(ensureStrandCountDivisibleByFour(strands.length))} />
             <Metric label="Steps" value={String(parsedSequence.sequence.length)} />
             <Metric label="Pairs" value={String(snapshot.pairs.length)} />
             <Metric label="Final move" value={finalSnapshot.move ?? 'Start'} />
@@ -209,9 +209,10 @@ function KongoDisk({
   snapshot: KongoSnapshot;
   previousSnapshot: KongoSnapshot;
 }) {
+  const scaledRadius = SLOT_RADIUS_SCALE_FACTOR - snapshot.slots.length;
   const slotRadius = Math.max(
     MIN_SLOT_RADIUS,
-    Math.min(MAX_SLOT_RADIUS, SLOT_RADIUS_SCALE_FACTOR - snapshot.slots.length),
+    Math.min(MAX_SLOT_RADIUS, scaledRadius),
   );
   const slotPositions = Array.from({ length: snapshot.slots.length }, (_, index) => polar(index, snapshot.slots.length, RING_RADIUS));
   const pairCount = snapshot.pairs.length;
@@ -264,6 +265,8 @@ function KongoDisk({
         if (!nextPosition) {
           return null;
         }
+        const relativeTrailX = previousPosition.x - nextPosition.x;
+        const relativeTrailY = previousPosition.y - nextPosition.y;
 
         return (
           <g
@@ -287,8 +290,8 @@ function KongoDisk({
             </text>
             {snapshot.step > 0 && (
               <line
-                x1={previousPosition.x - nextPosition.x}
-                y1={previousPosition.y - nextPosition.y}
+                x1={relativeTrailX}
+                y1={relativeTrailY}
                 x2={0}
                 y2={0}
                 className="kongo-motion-trail"
