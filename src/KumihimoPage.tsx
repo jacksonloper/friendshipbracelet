@@ -80,7 +80,7 @@ export default function KumihimoPage() {
               className="sequence-editor"
               value={sequenceText}
               onChange={event => {
-                setSequenceText(event.target.value.toUpperCase());
+                setSequenceText(event.target.value);
                 setSelectedStep(0);
               }}
               spellCheck={false}

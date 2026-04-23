@@ -207,14 +207,15 @@ function zUnitPerm(strandCount: number): number[] {
     throw new Error('strandCount must be divisible by 4.');
   }
 
+  const half = Math.floor(strandCount / 2);
+  const quarterTurn = Math.floor(strandCount / 4);
   const slots = Array.from({ length: strandCount }, (_, index) => index);
   const topRight = popAt(slots, 1, 'top-right');
-  slots.splice(strandCount / 2 + 1, 0, topRight);
+  slots.splice(half + 1, 0, topRight);
 
-  const bottomLeft = popAt(slots, strandCount / 2 - 1, 'bottom-left');
+  const bottomLeft = popAt(slots, half - 1, 'bottom-left');
   slots.splice(0, 0, bottomLeft);
 
-  const quarterTurn = strandCount / 4;
   return slots.slice(quarterTurn).concat(slots.slice(0, quarterTurn));
 }
 
@@ -223,14 +224,15 @@ function sUnitPerm(strandCount: number): number[] {
     throw new Error('strandCount must be divisible by 4.');
   }
 
+  const half = Math.floor(strandCount / 2);
+  const quarterTurn = Math.floor(strandCount / 4);
   const slots = Array.from({ length: strandCount }, (_, index) => index);
   const topLeft = popAt(slots, 0, 'top-left');
-  slots.splice(strandCount / 2, 0, topLeft);
+  slots.splice(half, 0, topLeft);
 
-  const bottomRight = popAt(slots, strandCount / 2 + 1, 'bottom-right');
+  const bottomRight = popAt(slots, half + 1, 'bottom-right');
   slots.splice(1, 0, bottomRight);
 
-  const quarterTurn = strandCount / 4;
   return slots.slice(quarterTurn).concat(slots.slice(0, quarterTurn));
 }
 
