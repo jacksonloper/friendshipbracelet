@@ -237,13 +237,13 @@ function sUnitPerm(strandCount: number): number[] {
 }
 
 function switchPerm(strandCount: number): number[] {
-  if (strandCount % 2 !== 0) {
-    throw new Error('strandCount must be even.');
+  if (strandCount % 4 !== 0) {
+    throw new Error('strandCount must be divisible by 4.');
   }
 
   const perm = Array.from({ length: strandCount }, (_, index) => index);
   for (let index = 0; index < strandCount; index += 2) {
-    [perm[index], perm[index + 1]] = [perm[index + 1] as number, perm[index] as number];
+    [perm[index], perm[index + 1]] = [perm[index + 1], perm[index]];
   }
   return perm;
 }
