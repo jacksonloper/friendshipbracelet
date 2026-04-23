@@ -539,7 +539,8 @@ code {
 }
 
 .kongo-strand-node {
-  transition: transform var(--animation-duration) ease, filter var(--animation-duration) ease;
+  /* transform is set entirely via useLayoutEffect to ensure animations always
+     go from the correct "previous" position. No CSS transition here. */
 }
 
 .kongo-strand-label {
@@ -759,4 +760,18 @@ code {
   .page-header h1 {
     text-align: center;
   }
+}
+
+/* ── Bracelet pattern preview ─────────────────────────────────── */
+
+.kumihimo-bracelet-scroll {
+  overflow: auto;
+  max-height: 520px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+
+.kumihimo-bracelet-svg {
+  display: block;
 }

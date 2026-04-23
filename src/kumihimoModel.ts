@@ -4,7 +4,7 @@ export type BraidDirection = 'Z' | 'S';
  * The kind of sub-step in the simulation:
  *   start      – initial state before any moves
  *   cross      – the Z or S 4-cycle (only slots 0, 1, half, half+1 move)
- *   rotate     – clockwise disk rotation by 2 positions (all slots shift)
+ *   rotate     – counter-clockwise disk rotation by 2 positions (all slots shift)
  *   transition – pair-swap when direction changes (all adjacent pairs swap)
  */
 export type SnapshotKind = 'start' | 'cross' | 'rotate' | 'transition';
@@ -135,7 +135,7 @@ export function simulateKongo(strands: StrandSpec[], sequence: readonly BraidDir
   const half = strandCount / 2;
   const zCross = buildZCrossPerm(strandCount);
   const sCross = buildSCrossPerm(strandCount);
-  const rotateCW = buildRotateCWPerm(strandCount);
+  const rotateCCW = buildRotateCCWPerm(strandCount);
   const trans = buildTransitionPerm(strandCount);
   const crossActiveSlots = [0, 1, half, half + 1];
   const allSlots = Array.from({ length: strandCount }, (_, i) => i);
@@ -173,7 +173,7 @@ export function simulateKongo(strands: StrandSpec[], sequence: readonly BraidDir
       activeSlots: crossActiveSlots.slice(),
     });
 
-    slots = applyPerm(slots, rotateCW);
+    slots = applyPerm(slots, rotateCCW);
     snapshots.push({
       subStep: subStep++,
       sequenceStep,
@@ -270,13 +270,13 @@ function buildSCrossPerm(strandCount: number): number[] {
 }
 
 /**
- * Clockwise disk rotation by 2 positions.
- * Each strand physically moves 2 positions clockwise, so the new top
- * (slot 0) gets the strand that was 2 positions counterclockwise (slot n-2).
- * perm[i] = (i - 2 + n) % n
+ * Counter-clockwise disk rotation by 2 positions.
+ * Each strand at slot i moves CCW to slot (i - 2 + n) % n.
+ * In perm[dest] = src notation: dest j gets the strand from src (j + 2) % n.
+ * perm[i] = (i + 2) % n
  */
-function buildRotateCWPerm(strandCount: number): number[] {
-  return Array.from({ length: strandCount }, (_, i) => (i - 2 + strandCount) % strandCount);
+function buildRotateCCWPerm(strandCount: number): number[] {
+  return Array.from({ length: strandCount }, (_, i) => (i + 2) % strandCount);
 }
 
 /**
@@ -290,4 +290,52 @@ function buildTransitionPerm(strandCount: number): number[] {
     perm[i + 1] = i;
   }
   return perm;
+}
+
+/**
+ * Compute the visible bracelet pattern from the initial strand arrangement.
+ *
+ * Algorithm (reverse-engineered from Kumihimo.js / jquery.kumihimo.js):
+ *   S = 4n strands, G = n groups of 4, W = 2n pattern columns.
+ *   groups[g] = [ strands[4g+1], strands[4g], strands[4g+3], strands[4g+2] ]
+ *   pattern[i][j]:
+ *     g = (j + floor(i/2))         mod G
+ *     k = (i - floor((j+i/2) / G)) mod 4   (i/2 is real division)
+ *     color = groups[g][k].color
+ *
+ * The resulting grid is rendered on an oblique lattice with overlapping ellipses
+ * to produce the woven look.
+ */
+export function computeKumihimoPattern(
+  initialStrands: StrandSpec[],
+  numRows: number,
+): string[][] {
+  const S = initialStrands.length;
+  if (S < 4 || S % 4 !== 0) return [];
+
+  const G = S / 4;
+
+  // Build groups of 4, swapping each pair within the group.
+  const groups: string[][] = [];
+  for (let g = 0; g < G; g++) {
+    groups.push([
+      initialStrands[4 * g + 1]!.color,
+      initialStrands[4 * g]!.color,
+      initialStrands[4 * g + 3]!.color,
+      initialStrands[4 * g + 2]!.color,
+    ]);
+  }
+
+  const W = S / 2;
+  const pattern: string[][] = [];
+  for (let i = 0; i < numRows; i++) {
+    const row: string[] = [];
+    for (let j = 0; j < W; j++) {
+      const g = ((j + Math.floor(i / 2)) % G + G) % G;
+      const k = (((i - Math.floor((j + i / 2) / G)) % 4) + 4) % 4;
+      row.push(groups[g]![k]!);
+    }
+    pattern.push(row);
+  }
+  return pattern;
 }

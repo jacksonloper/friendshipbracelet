@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+  computeKumihimoPattern,
   createDefaultKongoSequence,
   createDefaultStrands,
   ensureStrandCountDivisibleByFour,
@@ -58,8 +59,8 @@ export default function KumihimoPage() {
           <h1>Kongo Gumi Pattern Builder</h1>
           <p className="page-description">
             Each Z/S step is split into two sub-steps: the 4-strand cross (only slots 0, 1, 2n, 2n+1
-            move), then a clockwise disk rotation by 2. Use the slider to step through each sub-step
-            and watch the strands animate.
+            move), then a counter-clockwise disk rotation by 2. Use the slider to step through each
+            sub-step and watch the strands animate.
           </p>
         </div>
         <button type="button" onClick={resetDefaults}>Reset defaults</button>
@@ -95,7 +96,7 @@ export default function KumihimoPage() {
           </label>
           <p className="note">
             Use only Z and S. Z cross: 0→1→2n→2n+1→0. S cross: 2n→1→0→2n+1→2n.
-            Each cross is followed by a clockwise disk rotation by 2. A direction change inserts a pair-swap transition.
+            Each cross is followed by a counter-clockwise disk rotation by 2. A direction change inserts a pair-swap transition.
           </p>
           {parsedSequence.errors.length > 0 ? (
             <div className="error-list">
@@ -166,28 +167,8 @@ export default function KumihimoPage() {
         </section>
 
         <section className="panel">
-          <h2>Final slot order</h2>
-          <div className="kongo-slot-strip">
-            {finalSnapshot.slots.map((strand, index) => (
-              <div key={`${index}-${strand.id}`} className="kongo-slot-chip">
-                <span className="kongo-swatch" style={{ backgroundColor: strand.color }} aria-hidden="true" />
-                <span>Slot {index}</span>
-                <strong>#{strand.id}</strong>
-              </div>
-            ))}
-          </div>
-          <div className="kongo-pair-list">
-            {finalSnapshot.pairs.map(pair => (
-              <div key={pair.pairIndex} className="kongo-final-pair">
-                <span>Pair {pair.pairIndex + 1}</span>
-                <span className="kongo-pair-stack">
-                  <span className="kongo-pair-swatch" style={{ backgroundColor: pair.first.color }} aria-hidden="true" />
-                  <span className="kongo-pair-swatch" style={{ backgroundColor: pair.second.color }} aria-hidden="true" />
-                </span>
-                <strong>{pair.slotA}/{pair.slotB}</strong>
-              </div>
-            ))}
-          </div>
+          <h2>Bracelet pattern</h2>
+          <KumihimoBraceletPattern initialStrands={strands} />
         </section>
       </div>
     </div>
@@ -218,7 +199,13 @@ function KongoDisk({
   );
   const n = snapshot.slots.length;
   const half = n / 2;
-  const slotPositions = Array.from({ length: n }, (_, index) => polar(index, n, RING_RADIUS));
+
+  // Slot positions never change for a given n (fixed ring geometry).
+  const slotPositions = useMemo(
+    () => Array.from({ length: n }, (_, i) => polar(i, n, RING_RADIUS)),
+    [n],
+  );
+
   const activeSlotSet = new Set(snapshot.activeSlots);
 
   // Only the cross step highlights specific pairs; for the rest no pairs are highlighted.
@@ -226,7 +213,47 @@ function KongoDisk({
     ? new Set([0, half / 2])
     : new Set<number>();
 
-  const previousSlotLookup = createSlotLookup(previousSnapshot);
+  // ── Animation ────────────────────────────────────────────────────────────
+  // We manage `style.transform` on each strand <g> entirely via DOM refs so
+  // that every step-change animates FROM the correct previous slot position
+  // regardless of how the user navigates the slider.
+  const nodeRefs = useRef<Map<number, SVGGElement>>(new Map());
+
+  useLayoutEffect(() => {
+    const prevLookup = new Map(previousSnapshot.slots.map((s, i) => [s.id, i]));
+    const currLookup = new Map(snapshot.slots.map((s, i) => [s.id, i]));
+
+    // Step 1 — snap every strand to its PREVIOUS slot position (no transition).
+    for (const [id, el] of nodeRefs.current) {
+      const prevSlot = prevLookup.get(id) ?? currLookup.get(id) ?? 0;
+      const pos = slotPositions[prevSlot];
+      if (pos) {
+        el.style.transition = 'none';
+        el.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+      }
+    }
+
+    // Force a synchronous layout so the browser registers the "from" position
+    // before we set the transition.  Reading any layout property is sufficient.
+    const firstEl = nodeRefs.current.values().next().value as SVGGElement | undefined;
+    firstEl?.getBoundingClientRect();
+
+    // Step 2 — animate every strand to its CURRENT slot position.
+    for (const [id, el] of nodeRefs.current) {
+      const currSlot = currLookup.get(id) ?? 0;
+      const pos = slotPositions[currSlot];
+      if (pos) {
+        el.style.transition = 'transform var(--animation-duration) ease';
+        el.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+      }
+    }
+  }, [snapshot.subStep, slotPositions]);   // run on every step or strand-count change
+
+  // For drawing motion-trail arrows (purely decorative).
+  const previousSlotLookup = useMemo(
+    () => new Map(previousSnapshot.slots.map((s, i) => [s.id, i])),
+    [previousSnapshot.slots],
+  );
 
   return (
     <svg width={DISK_SIZE} height={DISK_SIZE} viewBox={`0 0 ${DISK_SIZE} ${DISK_SIZE}`} className="kongo-disk">
@@ -282,33 +309,27 @@ function KongoDisk({
         );
       })}
 
-      {/* Strand dots – CSS transition animates movement between steps */}
+      {/* Strand dots – positions driven by useLayoutEffect above (no style prop here). */}
       {snapshot.slots.map((strand, index) => {
-        const nextPosition = slotPositions[index];
-        if (!nextPosition) {
-          return null;
-        }
-        // Fall back to `index` (no movement) when the strand didn't exist in the previous
-        // snapshot. In this simulation every strand always exists in every snapshot, so this
-        // path is only taken at sub-step 0 (Start) where previousSnapshot === snapshot.
+        // Trail line: drawn relative to the strand's current position.
         const previousIndex = previousSlotLookup.get(strand.id) ?? index;
-        const previousPosition = slotPositions[previousIndex] ?? nextPosition;
-        const relativeTrailX = previousPosition.x - nextPosition.x;
-        const relativeTrailY = previousPosition.y - nextPosition.y;
+        const currPos = slotPositions[index];
+        const prevPos = slotPositions[previousIndex] ?? currPos;
+        const showTrail = snapshot.subStep > 0 && previousIndex !== index && currPos && prevPos;
 
         return (
           <g
             key={strand.id}
-            className="kongo-strand-node"
-            style={{
-              transform: `translate(${nextPosition.x}px, ${nextPosition.y}px)`,
-              transformOrigin: '0 0',
+            ref={(el) => {
+              if (el) nodeRefs.current.set(strand.id, el);
+              else nodeRefs.current.delete(strand.id);
             }}
+            className="kongo-strand-node"
           >
-            {snapshot.subStep > 0 && previousIndex !== index && (
+            {showTrail && (
               <line
-                x1={relativeTrailX}
-                y1={relativeTrailY}
+                x1={prevPos!.x - currPos!.x}
+                y1={prevPos!.y - currPos!.y}
                 x2={0}
                 y2={0}
                 className="kongo-motion-trail"
@@ -343,7 +364,7 @@ function formatCenterLabel(snapshot: KongoSnapshot): string {
     case 'cross':
       return `${snapshot.move} cross`;
     case 'rotate':
-      return 'Rotate ↻ 2';
+      return 'Rotate ↺ 2';
     case 'transition':
       return `→ ${snapshot.move} transition`;
   }
@@ -370,8 +391,8 @@ function KongoSubStepCard({
     return (
       <div className="kongo-action-card">
         <p className="kongo-action-summary">
-          Disk rotates <strong>clockwise by 2</strong> positions.
-          Every strand moves from slot <em>i</em> to slot <em>(i + 2) mod {snapshot.slots.length}</em>.
+          Disk rotates <strong>counter-clockwise by 2</strong> positions.
+          Every strand moves from slot <em>i</em> to slot <em>(i − 2 + n) mod {snapshot.slots.length}</em>.
         </p>
       </div>
     );
@@ -478,7 +499,7 @@ function formatStepLabel(snapshot: KongoSnapshot): string {
     case 'cross':
       return `${snapshot.sequenceStep}: ${snapshot.move} cross`;
     case 'rotate':
-      return `${snapshot.sequenceStep}: Rotate ↻2`;
+      return `${snapshot.sequenceStep}: Rotate ↺2`;
     case 'transition':
       return `${snapshot.sequenceStep}: → ${snapshot.move}`;
   }
@@ -490,4 +511,62 @@ function polar(slotIndex: number, slotCount: number, radius: number) {
     x: DISK_SIZE / 2 + Math.cos(angle) * radius,
     y: DISK_SIZE / 2 + Math.sin(angle) * radius,
   };
+}
+
+/**
+ * Renders the kumihimo bracelet pattern as an SVG oblique-lattice of overlapping
+ * ellipses, using only the initial strand colors (independent of sequence).
+ *
+ * Layout: r = half the horizontal cell spacing.
+ *   even rows shift right by r (½ step).
+ *   ellipse size: 2.5r × 3r (overlap creates woven look).
+ */
+function KumihimoBraceletPattern({ initialStrands }: { initialStrands: StrandSpec[] }) {
+  const S = initialStrands.length;
+  if (S < 4 || S % 4 !== 0) return null;
+
+  const W = S / 2;
+  const NR = Math.min(Math.round(0.86 * S + 1.56), 40);
+
+  // Cell half-spacing in pixels.
+  const r = 20;
+
+  const pattern = useMemo(
+    () => computeKumihimoPattern(initialStrands, NR),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [initialStrands.map(s => s.color).join(','), NR],
+  );
+
+  const svgWidth = (2 * W + 3) * r;
+  const svgHeight = (2 * NR + 2) * r;
+
+  return (
+    <div className="kumihimo-bracelet-scroll">
+      <svg
+        width={svgWidth}
+        height={svgHeight}
+        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+        className="kumihimo-bracelet-svg"
+        aria-label="Kumihimo bracelet pattern preview"
+      >
+        {pattern.map((row, i) =>
+          row.map((color, j) => {
+            // x1=r: left margin of one r; even rows shift right by r.
+            const x = r + (2 * j + 1) * r + (i % 2 === 0 ? r : 0);
+            const y = r + (2 * i + 1) * r;
+            return (
+              <ellipse
+                key={`${i}-${j}`}
+                cx={x}
+                cy={y}
+                rx={1.25 * r}
+                ry={1.5 * r}
+                fill={color}
+              />
+            );
+          }),
+        )}
+      </svg>
+    </div>
+  );
 }
