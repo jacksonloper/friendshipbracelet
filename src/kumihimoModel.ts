@@ -1,5 +1,14 @@
 export type BraidDirection = 'Z' | 'S';
 
+/**
+ * The kind of sub-step in the simulation:
+ *   start      – initial state before any moves
+ *   cross      – the Z or S 4-cycle (only slots 0, 1, half, half+1 move)
+ *   rotate     – clockwise disk rotation by 2 positions (all slots shift)
+ *   transition – pair-swap when direction changes (all adjacent pairs swap)
+ */
+export type SnapshotKind = 'start' | 'cross' | 'rotate' | 'transition';
+
 export interface StrandSpec {
   id: number;
   color: string;
@@ -13,28 +22,17 @@ export interface KongoPair {
   second: StrandSpec;
 }
 
-export interface KongoActionParticipant {
-  role: 'leftUp' | 'rightUp' | 'leftDown' | 'rightDown';
-  strand: StrandSpec;
-  slot: number;
-  moves: boolean;
-  targetLabel: string;
-}
-
-export interface KongoStepAction {
-  direction: BraidDirection;
-  participants: KongoActionParticipant[];
-  topPairIndex: number;
-  bottomPairIndex: number;
-  rotationSlots: number;
-}
-
 export interface KongoSnapshot {
-  step: number;
+  /** Index of this snapshot in the full snapshots array. */
+  subStep: number;
+  /** Which letter in the input sequence this sub-step belongs to (0 = start). */
+  sequenceStep: number;
+  kind: SnapshotKind;
   move: BraidDirection | null;
   slots: StrandSpec[];
   pairs: KongoPair[];
-  action: KongoStepAction | null;
+  /** Slot indices that participate in the move for this sub-step. */
+  activeSlots: number[];
 }
 
 export interface KongoSimulationResult {
@@ -118,32 +116,78 @@ export function parseKongoSequence(input: string): { sequence: BraidDirection[];
 export function simulateKongo(strands: StrandSpec[], sequence: readonly BraidDirection[]): KongoSimulationResult {
   const errors = validateStrands(strands);
   const startingSlots = strands.slice();
-  const snapshots: KongoSnapshot[] = [createSnapshot(0, null, startingSlots, null)];
+
+  const startSnapshot: KongoSnapshot = {
+    subStep: 0,
+    sequenceStep: 0,
+    kind: 'start',
+    move: null,
+    slots: startingSlots.slice(),
+    pairs: createPairs(startingSlots),
+    activeSlots: [],
+  };
 
   if (errors.length > 0) {
-    return {
-      snapshots,
-      finalSlots: startingSlots,
-      errors,
-    };
+    return { snapshots: [startSnapshot], finalSlots: startingSlots, errors };
   }
 
   const strandCount = strands.length;
-  const zPerm = zUnitPerm(strandCount);
-  const sPerm = sUnitPerm(strandCount);
-  let slots = startingSlots;
+  const half = strandCount / 2;
+  const zCross = buildZCrossPerm(strandCount);
+  const sCross = buildSCrossPerm(strandCount);
+  const rotateCW = buildRotateCWPerm(strandCount);
+  const trans = buildTransitionPerm(strandCount);
+  const crossActiveSlots = [0, 1, half, half + 1];
+  const allSlots = Array.from({ length: strandCount }, (_, i) => i);
 
-  sequence.forEach((move, index) => {
-    const action = createAction(move, slots);
-    slots = applyPerm(slots, move === 'Z' ? zPerm : sPerm);
-    snapshots.push(createSnapshot(index + 1, move, slots, action));
-  });
+  const snapshots: KongoSnapshot[] = [startSnapshot];
+  let slots = startingSlots.slice();
+  let previousMove: BraidDirection | null = null;
+  let subStep = 1;
 
-  return {
-    snapshots,
-    finalSlots: slots,
-    errors: [],
-  };
+  for (let seqIndex = 0; seqIndex < sequence.length; seqIndex++) {
+    const move = sequence[seqIndex]!;
+    const sequenceStep = seqIndex + 1;
+
+    if (previousMove !== null && previousMove !== move) {
+      slots = applyPerm(slots, trans);
+      snapshots.push({
+        subStep: subStep++,
+        sequenceStep,
+        kind: 'transition',
+        move,
+        slots: slots.slice(),
+        pairs: createPairs(slots),
+        activeSlots: allSlots.slice(),
+      });
+    }
+
+    slots = applyPerm(slots, move === 'Z' ? zCross : sCross);
+    snapshots.push({
+      subStep: subStep++,
+      sequenceStep,
+      kind: 'cross',
+      move,
+      slots: slots.slice(),
+      pairs: createPairs(slots),
+      activeSlots: crossActiveSlots.slice(),
+    });
+
+    slots = applyPerm(slots, rotateCW);
+    snapshots.push({
+      subStep: subStep++,
+      sequenceStep,
+      kind: 'rotate',
+      move,
+      slots: slots.slice(),
+      pairs: createPairs(slots),
+      activeSlots: allSlots.slice(),
+    });
+
+    previousMove = move;
+  }
+
+  return { snapshots, finalSlots: slots, errors: [] };
 }
 
 function validateStrands(strands: StrandSpec[]): string[] {
@@ -152,71 +196,6 @@ function validateStrands(strands: StrandSpec[]): string[] {
   }
 
   return [];
-}
-
-function createSnapshot(
-  step: number,
-  move: BraidDirection | null,
-  slots: StrandSpec[],
-  action: KongoStepAction | null,
-): KongoSnapshot {
-  return {
-    step,
-    move,
-    slots: slots.slice(),
-    pairs: createPairs(slots),
-    action,
-  };
-}
-
-function createAction(direction: BraidDirection, slots: StrandSpec[]): KongoStepAction {
-  const half = Math.floor(slots.length / 2);
-  const quarter = Math.floor(slots.length / 4);
-  const leftUp = slots[0];
-  const rightUp = slots[1];
-  const leftDown = slots[half];
-  const rightDown = slots[half + 1];
-
-  if (!leftUp || !rightUp || !leftDown || !rightDown) {
-    throw new Error('Unable to build a four-strand action from the current slots.');
-  }
-
-  return {
-    direction,
-    topPairIndex: 0,
-    bottomPairIndex: half / 2,
-    rotationSlots: quarter,
-    participants: [
-      {
-        role: 'leftUp',
-        strand: leftUp,
-        slot: 0,
-        moves: direction === 'S',
-        targetLabel: direction === 'S' ? 'left of left down' : 'stays in the active group',
-      },
-      {
-        role: 'rightUp',
-        strand: rightUp,
-        slot: 1,
-        moves: direction === 'Z',
-        targetLabel: direction === 'Z' ? 'right of right down' : 'stays in the active group',
-      },
-      {
-        role: 'leftDown',
-        strand: leftDown,
-        slot: half,
-        moves: direction === 'Z',
-        targetLabel: direction === 'Z' ? 'left of left up' : 'stays in the active group',
-      },
-      {
-        role: 'rightDown',
-        strand: rightDown,
-        slot: half + 1,
-        moves: direction === 'S',
-        targetLabel: direction === 'S' ? 'right of right up' : 'stays in the active group',
-      },
-    ],
-  };
 }
 
 function createPairs(slots: StrandSpec[]): KongoPair[] {
@@ -253,47 +232,62 @@ function applyPerm<T>(items: readonly T[], perm: readonly number[]): T[] {
   return perm.map(sourceIndex => items[sourceIndex] as T);
 }
 
-function zUnitPerm(strandCount: number): number[] {
-  if (strandCount % 4 !== 0) {
-    throw new Error('strandCount must be divisible by 4.');
-  }
-
-  const half = Math.floor(strandCount / 2);
-  const quarterTurn = Math.floor(strandCount / 4);
-  const slots = Array.from({ length: strandCount }, (_, index) => index);
-  const topRight = popAt(slots, 1, 'right-up');
-  slots.splice(half + 1, 0, topRight);
-
-  const bottomLeft = popAt(slots, half - 1, 'left-down');
-  slots.splice(0, 0, bottomLeft);
-
-  return rotateLeft(slots, quarterTurn);
+/**
+ * Z cross: 4-cycle 0 → 1 → 2n → 2n+1 → 0
+ * (slot 0 sends its strand to slot 1, slot 1 to slot 2n, etc.)
+ * In perm[dest]=src notation:
+ *   slot 1    ← slot 0
+ *   slot 2n   ← slot 1
+ *   slot 2n+1 ← slot 2n
+ *   slot 0    ← slot 2n+1
+ */
+function buildZCrossPerm(strandCount: number): number[] {
+  const half = strandCount / 2;
+  const perm = Array.from({ length: strandCount }, (_, i) => i);
+  perm[0] = half + 1;
+  perm[1] = 0;
+  perm[half] = 1;
+  perm[half + 1] = half;
+  return perm;
 }
 
-function sUnitPerm(strandCount: number): number[] {
-  if (strandCount % 4 !== 0) {
-    throw new Error('strandCount must be divisible by 4.');
-  }
-
-  const half = Math.floor(strandCount / 2);
-  const quarterTurn = Math.floor(strandCount / 4);
-  const slots = Array.from({ length: strandCount }, (_, index) => index);
-  const topLeft = popAt(slots, 0, 'left-up');
-  slots.splice(half, 0, topLeft);
-
-  const bottomRight = popAt(slots, half + 1, 'right-down');
-  slots.splice(1, 0, bottomRight);
-
-  return rotateLeft(slots, quarterTurn);
+/**
+ * S cross: reverse 4-cycle 2n → 1 → 0 → 2n+1 → 2n
+ * In perm[dest]=src notation:
+ *   slot 0    ← slot 1
+ *   slot 1    ← slot 2n
+ *   slot 2n   ← slot 2n+1
+ *   slot 2n+1 ← slot 0
+ */
+function buildSCrossPerm(strandCount: number): number[] {
+  const half = strandCount / 2;
+  const perm = Array.from({ length: strandCount }, (_, i) => i);
+  perm[0] = 1;
+  perm[1] = half;
+  perm[half] = half + 1;
+  perm[half + 1] = 0;
+  return perm;
 }
 
-function rotateLeft(items: number[], amount: number): number[] {
-  return items.slice(amount).concat(items.slice(0, amount));
+/**
+ * Clockwise disk rotation by 2 positions.
+ * Each strand physically moves 2 positions clockwise, so the new top
+ * (slot 0) gets the strand that was 2 positions counterclockwise (slot n-2).
+ * perm[i] = (i - 2 + n) % n
+ */
+function buildRotateCWPerm(strandCount: number): number[] {
+  return Array.from({ length: strandCount }, (_, i) => (i - 2 + strandCount) % strandCount);
 }
 
-function popAt(slots: number[], index: number, label: string): number {
-  if (index < 0 || index >= slots.length) {
-    throw new Error(`Unable to remove the ${label} strand at slot index ${index}.`);
+/**
+ * Transition: swap every adjacent pair.
+ * (0↔1, 2↔3, 4↔5, …)
+ */
+function buildTransitionPerm(strandCount: number): number[] {
+  const perm = Array.from({ length: strandCount }, (_, i) => i);
+  for (let i = 0; i < strandCount; i += 2) {
+    perm[i] = i + 1;
+    perm[i + 1] = i;
   }
-  return slots.splice(index, 1)[0] as number;
+  return perm;
 }

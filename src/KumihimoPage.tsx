@@ -6,7 +6,6 @@ import {
   parseKongoSequence,
   resizeStrands,
   simulateKongo,
-  type KongoActionParticipant,
   type KongoSnapshot,
   type StrandSpec,
 } from './kumihimoModel';
@@ -27,7 +26,6 @@ export default function KumihimoPage() {
   const simulation = useMemo(() => simulateKongo(strands, parsedSequence.sequence), [parsedSequence.sequence, strands]);
   const snapshot = simulation.snapshots[selectedStep] ?? simulation.snapshots[0];
   const previousSnapshot = simulation.snapshots[Math.max(selectedStep - 1, 0)] ?? simulation.snapshots[0];
-  const finalSnapshot = simulation.snapshots[simulation.snapshots.length - 1] ?? simulation.snapshots[0];
 
   useEffect(() => {
     setSelectedStep(previous => Math.min(previous, simulation.snapshots.length - 1));
@@ -51,14 +49,17 @@ export default function KumihimoPage() {
     setSelectedStep(0);
   }
 
+  const finalSnapshot = simulation.snapshots[simulation.snapshots.length - 1] ?? simulation.snapshots[0];
+
   return (
     <div className="kumihimo-page">
       <div className="page-header">
         <div>
           <h1>Kongo Gumi Pattern Builder</h1>
           <p className="page-description">
-            Each Z or S step now models one active four-strand group: two threads up, two threads down,
-            then a counterclockwise disk rotation to bring the next pair to the top.
+            Each Z/S step is split into two sub-steps: the 4-strand cross (only slots 0, 1, 2n, 2n+1
+            move), then a clockwise disk rotation by 2. Use the slider to step through each sub-step
+            and watch the strands animate.
           </p>
         </div>
         <button type="button" onClick={resetDefaults}>Reset defaults</button>
@@ -93,8 +94,8 @@ export default function KumihimoPage() {
             />
           </label>
           <p className="note">
-            Use only Z and S steps. Whitespace and commas are ignored.
-            Z moves left down + right up; S moves left up + right down; each step then rotates the disk counterclockwise.
+            Use only Z and S. Z cross: 0→1→2n→2n+1→0. S cross: 2n→1→0→2n+1→2n.
+            Each cross is followed by a clockwise disk rotation by 2. A direction change inserts a pair-swap transition.
           </p>
           {parsedSequence.errors.length > 0 ? (
             <div className="error-list">
@@ -107,10 +108,10 @@ export default function KumihimoPage() {
             </div>
           ) : null}
           <div className="metric-grid">
-            <Metric label="Normalized count" value={String(ensureStrandCountDivisibleByFour(strands.length))} />
-            <Metric label="Steps" value={String(parsedSequence.sequence.length)} />
-            <Metric label="Pairs" value={String(snapshot.pairs.length)} />
-            <Metric label="Final move" value={finalSnapshot.move ?? 'Start'} />
+            <Metric label="Strand count" value={String(ensureStrandCountDivisibleByFour(strands.length))} />
+            <Metric label="Sequence steps" value={String(parsedSequence.sequence.length)} />
+            <Metric label="Sub-steps" value={String(Math.max(simulation.snapshots.length - 1, 0))} />
+            <Metric label="Final move" value={finalSnapshot.move ?? '—'} />
           </div>
         </section>
 
@@ -137,10 +138,10 @@ export default function KumihimoPage() {
         <section className="panel">
           <div className="panel-header">
             <h2>Disk view</h2>
-            <span>{formatStepLabel(snapshot)}</span>
+            <span className={`kongo-kind-badge kongo-kind-${snapshot.kind}`}>{formatStepLabel(snapshot)}</span>
           </div>
           <label className="timeline-label">
-            Step {snapshot.step} / {Math.max(simulation.snapshots.length - 1, 0)}
+            Sub-step {snapshot.subStep} / {Math.max(simulation.snapshots.length - 1, 0)}
             <input
               type="range"
               min={0}
@@ -153,14 +154,14 @@ export default function KumihimoPage() {
         </section>
 
         <section className="panel">
-          <h2>Selected step</h2>
-          <KongoActionCard snapshot={snapshot} />
+          <h2>Current sub-step</h2>
+          <KongoSubStepCard snapshot={snapshot} previousSnapshot={previousSnapshot} />
         </section>
       </div>
 
       <div className="kumihimo-grid">
         <section className="panel">
-          <h2>Pattern timeline</h2>
+          <h2>Timeline</h2>
           <PatternTimeline snapshots={simulation.snapshots} selectedStep={selectedStep} onSelectStep={setSelectedStep} />
         </section>
 
@@ -214,22 +215,31 @@ function KongoDisk({
     MIN_SLOT_RADIUS,
     Math.min(MAX_SLOT_RADIUS, scaledRadius),
   );
-  const slotPositions = Array.from({ length: snapshot.slots.length }, (_, index) => polar(index, snapshot.slots.length, RING_RADIUS));
-  const pairCount = snapshot.pairs.length;
-  const highlightedPairs = new Set<number>(snapshot.action ? [snapshot.action.topPairIndex, snapshot.action.bottomPairIndex] : []);
+  const n = snapshot.slots.length;
+  const half = n / 2;
+  const slotPositions = Array.from({ length: n }, (_, index) => polar(index, n, RING_RADIUS));
+  const activeSlotSet = new Set(snapshot.activeSlots);
+
+  // Only the cross step highlights specific pairs; for the rest no pairs are highlighted.
+  const activePairIndices = snapshot.kind === 'cross'
+    ? new Set([0, half / 2])
+    : new Set<number>();
+
   const previousSlotLookup = createSlotLookup(previousSnapshot);
 
   return (
     <svg width={DISK_SIZE} height={DISK_SIZE} viewBox={`0 0 ${DISK_SIZE} ${DISK_SIZE}`} className="kongo-disk">
       <circle cx={DISK_SIZE / 2} cy={DISK_SIZE / 2} r={RING_RADIUS + 22} fill="var(--bg-secondary)" stroke="var(--border)" />
       <circle cx={DISK_SIZE / 2} cy={DISK_SIZE / 2} r={56} fill="var(--bg)" stroke="var(--border)" />
+
+      {/* Pair guide lines – connect the two slots that form each pair */}
       {snapshot.pairs.map(pair => {
         const first = slotPositions[pair.slotA];
         const second = slotPositions[pair.slotB];
         if (!first || !second) {
           return null;
         }
-        const emphasized = highlightedPairs.has(pair.pairIndex);
+        const emphasized = activePairIndices.has(pair.pairIndex);
         return (
           <g key={`pair-guide-${pair.pairIndex}`}>
             <line
@@ -250,21 +260,35 @@ function KongoDisk({
           </g>
         );
       })}
-      {slotPositions.map((position, index) => (
-        <g key={`slot-${index}`}>
-          <circle cx={position.x} cy={position.y} r={slotRadius} fill="var(--bg)" stroke="var(--border)" />
-          <text x={position.x} y={position.y - slotRadius - 6} textAnchor="middle" className="kongo-slot-label">
-            {index}
-          </text>
-        </g>
-      ))}
+
+      {/* Slot rings – active slots get a highlighted border */}
+      {slotPositions.map((position, index) => {
+        const isActive = activeSlotSet.has(index);
+        return (
+          <g key={`slot-${index}`}>
+            <circle
+              cx={position.x}
+              cy={position.y}
+              r={slotRadius + (isActive ? 4 : 0)}
+              fill="var(--bg)"
+              stroke={isActive ? 'var(--accent)' : 'var(--border)'}
+              strokeWidth={isActive ? 2 : 1}
+            />
+            <text x={position.x} y={position.y - slotRadius - 8} textAnchor="middle" className="kongo-slot-label">
+              {index}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* Strand dots – CSS transition animates movement between steps */}
       {snapshot.slots.map((strand, index) => {
         const nextPosition = slotPositions[index];
-        const previousIndex = previousSlotLookup.get(strand.id) ?? index;
-        const previousPosition = slotPositions[previousIndex] ?? nextPosition;
         if (!nextPosition) {
           return null;
         }
+        const previousIndex = previousSlotLookup.get(strand.id) ?? index;
+        const previousPosition = slotPositions[previousIndex] ?? nextPosition;
         const relativeTrailX = previousPosition.x - nextPosition.x;
         const relativeTrailY = previousPosition.y - nextPosition.y;
 
@@ -277,6 +301,15 @@ function KongoDisk({
               transformOrigin: '0 0',
             }}
           >
+            {snapshot.subStep > 0 && previousIndex !== index && (
+              <line
+                x1={relativeTrailX}
+                y1={relativeTrailY}
+                x2={0}
+                y2={0}
+                className="kongo-motion-trail"
+              />
+            )}
             <circle
               cx={0}
               cy={0}
@@ -288,75 +321,101 @@ function KongoDisk({
             <text x={0} y={4} textAnchor="middle" className="kongo-strand-label">
               {strand.id}
             </text>
-            {snapshot.step > 0 && previousIndex !== index && (
-              <line
-                x1={relativeTrailX}
-                y1={relativeTrailY}
-                x2={0}
-                y2={0}
-                className="kongo-motion-trail"
-              />
-            )}
           </g>
         );
       })}
-      {snapshot.action ? (
-        <>
-          <text x={DISK_SIZE / 2} y={DISK_SIZE / 2 - 8} textAnchor="middle" className="kongo-center-label">
-            {snapshot.move} step: 2 up / 2 down active group
-          </text>
-          <text x={DISK_SIZE / 2} y={DISK_SIZE / 2 + 12} textAnchor="middle" className="kongo-center-label">
-            Rotate counterclockwise by {snapshot.action.rotationSlots} slots
-          </text>
-          <text x={DISK_SIZE / 2} y={DISK_SIZE / 2 + 32} textAnchor="middle" className="kongo-center-label subtle">
-            Top pair P1, bottom pair P{Math.floor(pairCount / 2) + 1}
-          </text>
-        </>
-      ) : (
-        <text x={DISK_SIZE / 2} y={DISK_SIZE / 2 + 4} textAnchor="middle" className="kongo-center-label">
-          Start position
-        </text>
-      )}
+
+      <text x={DISK_SIZE / 2} y={DISK_SIZE / 2 + 4} textAnchor="middle" className="kongo-center-label">
+        {formatCenterLabel(snapshot)}
+      </text>
     </svg>
   );
 }
 
-function KongoActionCard({ snapshot }: { snapshot: KongoSnapshot }) {
-  if (!snapshot.action || !snapshot.move) {
+function formatCenterLabel(snapshot: KongoSnapshot): string {
+  switch (snapshot.kind) {
+    case 'start':
+      return 'Start';
+    case 'cross':
+      return `${snapshot.move} cross`;
+    case 'rotate':
+      return 'Rotate ↻ 2';
+    case 'transition':
+      return `→ ${snapshot.move} transition`;
+  }
+}
+
+function KongoSubStepCard({
+  snapshot,
+  previousSnapshot,
+}: {
+  snapshot: KongoSnapshot;
+  previousSnapshot: KongoSnapshot;
+}) {
+  const half = snapshot.slots.length / 2;
+
+  if (snapshot.kind === 'start') {
     return (
       <div className="kongo-action-card">
-        <p className="note">Select a Z or S step to inspect the active two-up / two-down group.</p>
+        <p className="kongo-action-summary">Starting configuration. Use the slider to step through.</p>
       </div>
     );
   }
 
+  if (snapshot.kind === 'rotate') {
+    return (
+      <div className="kongo-action-card">
+        <p className="kongo-action-summary">
+          Disk rotates <strong>clockwise by 2</strong> positions.
+          Every strand moves from slot <em>i</em> to slot <em>(i + 2) mod {snapshot.slots.length}</em>.
+        </p>
+      </div>
+    );
+  }
+
+  if (snapshot.kind === 'transition') {
+    return (
+      <div className="kongo-action-card">
+        <p className="kongo-action-summary">
+          Direction changes to <strong>{snapshot.move}</strong>.
+          Each adjacent pair swaps: 0↔1, 2↔3, 4↔5, …
+        </p>
+      </div>
+    );
+  }
+
+  // cross
+  const dir = snapshot.move!;
+  const cycle = dir === 'Z'
+    ? `0 → 1 → ${half} → ${half + 1} → 0`
+    : `${half} → 1 → 0 → ${half + 1} → ${half}`;
+
+  const prevLookup = createSlotLookup(previousSnapshot);
+
   return (
     <div className="kongo-action-card">
       <p className="kongo-action-summary">
-        <strong>{snapshot.move}</strong> works on the current top and bottom pairs.
-        Then the disk rotates counterclockwise so a fresh pair is ready at the top.
+        <strong>{dir} cross</strong> — 4-cycle: {cycle}
       </p>
       <div className="kongo-action-grid">
-        {snapshot.action.participants.map(participant => (
-          <ActionParticipantCard key={participant.role} participant={participant} />
-        ))}
-      </div>
-      <div className="kongo-action-footer">
-        <span>Active pairs: top P{snapshot.action.topPairIndex + 1}, bottom P{snapshot.action.bottomPairIndex + 1}</span>
-        <span>Rotation: {snapshot.action.rotationSlots} slots counterclockwise</span>
-      </div>
-    </div>
-  );
-}
-
-function ActionParticipantCard({ participant }: { participant: KongoActionParticipant }) {
-  return (
-    <div className={`kongo-action-participant${participant.moves ? ' moving' : ''}`}>
-      <span className="kongo-swatch" style={{ backgroundColor: participant.strand.color }} aria-hidden="true" />
-      <div>
-        <strong>{formatRole(participant.role)}</strong>
-        <div>strand #{participant.strand.id} in slot {participant.slot}</div>
-        <div>{participant.moves ? `Moves to ${participant.targetLabel}` : participant.targetLabel}</div>
+        {snapshot.activeSlots.map(destSlot => {
+          const strand = snapshot.slots[destSlot];
+          if (!strand) {
+            return null;
+          }
+          const srcSlot = prevLookup.get(strand.id) ?? destSlot;
+          const moved = srcSlot !== destSlot;
+          return (
+            <div key={destSlot} className={`kongo-action-participant${moved ? ' moving' : ''}`}>
+              <span className="kongo-swatch" style={{ backgroundColor: strand.color }} aria-hidden="true" />
+              <div>
+                <strong>Slot {destSlot}</strong>
+                <div>Strand #{strand.id}</div>
+                {moved && <div className="kongo-action-move">← from slot {srcSlot}</div>}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -375,24 +434,28 @@ function PatternTimeline({
     <div className="kongo-pattern-table">
       {snapshots.map(snapshot => (
         <button
-          key={`${snapshot.step}-${snapshot.move ?? 'start'}`}
+          key={snapshot.subStep}
           type="button"
-          className={`kongo-pattern-row-button${snapshot.step === selectedStep ? ' active' : ''}`}
-          onClick={() => onSelectStep(snapshot.step)}
+          className={`kongo-pattern-row-button${snapshot.subStep === selectedStep ? ' active' : ''}`}
+          onClick={() => onSelectStep(snapshot.subStep)}
         >
           <div className="kongo-pattern-row">
-            <div className="kongo-step-label">{formatStepLabel(snapshot)}</div>
-            {snapshot.pairs.map(pair => (
-              <div
-                key={`${snapshot.step}-${pair.pairIndex}`}
-                className={`kongo-pair-cell${snapshot.action && (pair.pairIndex === snapshot.action.topPairIndex || pair.pairIndex === snapshot.action.bottomPairIndex) ? ' active' : ''}`}
-                title={`pair ${pair.pairIndex + 1}: slots ${pair.slotA} and ${pair.slotB}`}
-              >
-                <span className="kongo-pair-caption">{pair.pairIndex + 1}</span>
-                <span className="kongo-pair-half" style={{ backgroundColor: pair.first.color }} aria-hidden="true" />
-                <span className="kongo-pair-half" style={{ backgroundColor: pair.second.color }} aria-hidden="true" />
-              </div>
-            ))}
+            <div className={`kongo-step-label kongo-kind-${snapshot.kind}`}>{formatStepLabel(snapshot)}</div>
+            {snapshot.pairs.map(pair => {
+              const isActive = snapshot.kind === 'cross' &&
+                (pair.slotA === 0 || pair.slotA === snapshot.slots.length / 2);
+              return (
+                <div
+                  key={`${snapshot.subStep}-${pair.pairIndex}`}
+                  className={`kongo-pair-cell${isActive ? ' active' : ''}`}
+                  title={`pair ${pair.pairIndex + 1}: slots ${pair.slotA} and ${pair.slotB}`}
+                >
+                  <span className="kongo-pair-caption">{pair.pairIndex + 1}</span>
+                  <span className="kongo-pair-half" style={{ backgroundColor: pair.first.color }} aria-hidden="true" />
+                  <span className="kongo-pair-half" style={{ backgroundColor: pair.second.color }} aria-hidden="true" />
+                </div>
+              );
+            })}
           </div>
         </button>
       ))}
@@ -405,23 +468,15 @@ function createSlotLookup(snapshot: KongoSnapshot): Map<number, number> {
 }
 
 function formatStepLabel(snapshot: KongoSnapshot): string {
-  if (snapshot.move === null) {
-    return 'Start';
-  }
-
-  return `${snapshot.step}: ${snapshot.move}`;
-}
-
-function formatRole(role: KongoActionParticipant['role']): string {
-  switch (role) {
-    case 'leftUp':
-      return 'Left up';
-    case 'rightUp':
-      return 'Right up';
-    case 'leftDown':
-      return 'Left down';
-    case 'rightDown':
-      return 'Right down';
+  switch (snapshot.kind) {
+    case 'start':
+      return 'Start';
+    case 'cross':
+      return `${snapshot.sequenceStep}: ${snapshot.move} cross`;
+    case 'rotate':
+      return `${snapshot.sequenceStep}: Rotate ↻2`;
+    case 'transition':
+      return `${snapshot.sequenceStep}: → ${snapshot.move}`;
   }
 }
 

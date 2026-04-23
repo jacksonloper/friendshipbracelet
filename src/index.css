@@ -6,7 +6,7 @@
   --accent: #2563eb;
   --accent-2: #7c3aed;
   --max-content-width: 1180px;
-  --animation-duration: 360ms;
+  --animation-duration: 700ms;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -584,15 +584,58 @@ code {
 }
 
 .kongo-step-label {
-  width: 92px;
-  min-width: 92px;
+  width: 116px;
+  min-width: 116px;
   padding: 10px 8px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--bg);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   display: flex;
   align-items: center;
+}
+
+/* Sub-step kind colouring on step labels */
+.kongo-step-label.kongo-kind-cross {
+  border-left: 3px solid var(--accent);
+}
+
+.kongo-step-label.kongo-kind-rotate {
+  border-left: 3px solid var(--accent-2);
+}
+
+.kongo-step-label.kongo-kind-transition {
+  border-left: 3px solid #f59e0b;
+}
+
+/* Badge shown next to the disk panel title */
+.kongo-kind-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+
+.kongo-kind-badge.kongo-kind-cross {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.kongo-kind-badge.kongo-kind-rotate {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+}
+
+.kongo-kind-badge.kongo-kind-transition {
+  border-color: #f59e0b;
+  color: #b45309;
+}
+
+.kongo-action-move {
+  font-size: 0.78rem;
+  opacity: 0.7;
 }
 
 .kongo-pair-cell {
