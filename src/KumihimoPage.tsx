@@ -206,6 +206,9 @@ function KongoDisk({ snapshot }: { snapshot: KongoSnapshot }) {
   // We track the *last rendered* snapshot in a ref so that animations always
   // run from wherever strands actually were on screen — regardless of whether
   // the user navigated forward, backward, or jumped several steps at once.
+  //
+  // On initial mount, `snapshot` is always `snapshots[0]` (selectedStep starts
+  // at 0), so the ref starts from the correct beginning state.
   const prevDisplayedRef = useRef<KongoSnapshot>(snapshot);
   const nodeRefs = useRef<Map<number, SVGGElement>>(new Map());
 
