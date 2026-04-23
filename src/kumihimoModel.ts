@@ -105,7 +105,7 @@ export function parseKongoSequence(input: string): { sequence: BraidDirection[];
     }
 
     if (char) {
-      errors.push(`Unsupported character "${input[index]}" at position ${index + 1}. Use only Z and S.`);
+      errors.push(`Unsupported character "${char}" at position ${index + 1}. Use only Z and S.`);
     }
   }
 

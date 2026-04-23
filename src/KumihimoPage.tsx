@@ -288,7 +288,7 @@ function KongoDisk({
             <text x={0} y={4} textAnchor="middle" className="kongo-strand-label">
               {strand.id}
             </text>
-            {snapshot.step > 0 && (
+            {snapshot.step > 0 && previousIndex !== index && (
               <line
                 x1={relativeTrailX}
                 y1={relativeTrailY}

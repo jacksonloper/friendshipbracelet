@@ -6,6 +6,7 @@
   --accent: #2563eb;
   --accent-2: #7c3aed;
   --max-content-width: 1180px;
+  --animation-duration: 360ms;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -538,7 +539,7 @@ code {
 }
 
 .kongo-strand-node {
-  transition: transform 360ms ease, filter 360ms ease;
+  transition: transform var(--animation-duration) ease, filter var(--animation-duration) ease;
 }
 
 .kongo-strand-label {
