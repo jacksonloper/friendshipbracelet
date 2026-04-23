@@ -285,7 +285,7 @@ function KongoDisk({
             <text x={0} y={4} textAnchor="middle" className="kongo-strand-label">
               {strand.id}
             </text>
-            {snapshot.step > 0 && previousPosition && (
+            {snapshot.step > 0 && (
               <line
                 x1={previousPosition.x - nextPosition.x}
                 y1={previousPosition.y - nextPosition.y}
@@ -306,7 +306,7 @@ function KongoDisk({
             Rotate counterclockwise by {snapshot.action.rotationSlots} slots
           </text>
           <text x={DISK_SIZE / 2} y={DISK_SIZE / 2 + 32} textAnchor="middle" className="kongo-center-label subtle">
-            Top pair P1, bottom pair P{pairCount / 2 + 1}
+            Top pair P1, bottom pair P{Math.floor(pairCount / 2 + 1)}
           </text>
         </>
       ) : (

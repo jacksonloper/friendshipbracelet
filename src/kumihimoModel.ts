@@ -266,7 +266,7 @@ function zUnitPerm(strandCount: number): number[] {
   const bottomLeft = popAt(slots, half - 1, 'left-down');
   slots.splice(0, 0, bottomLeft);
 
-  return rotateCounterclockwise(slots, quarterTurn);
+  return rotateLeft(slots, quarterTurn);
 }
 
 function sUnitPerm(strandCount: number): number[] {
@@ -283,10 +283,10 @@ function sUnitPerm(strandCount: number): number[] {
   const bottomRight = popAt(slots, half + 1, 'right-down');
   slots.splice(1, 0, bottomRight);
 
-  return rotateCounterclockwise(slots, quarterTurn);
+  return rotateLeft(slots, quarterTurn);
 }
 
-function rotateCounterclockwise(items: number[], amount: number): number[] {
+function rotateLeft(items: number[], amount: number): number[] {
   return items.slice(amount).concat(items.slice(0, amount));
 }
 
