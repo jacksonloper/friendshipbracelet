@@ -309,7 +309,7 @@ function KongoDisk({
             Rotate counterclockwise by {snapshot.action.rotationSlots} slots
           </text>
           <text x={DISK_SIZE / 2} y={DISK_SIZE / 2 + 32} textAnchor="middle" className="kongo-center-label subtle">
-            Top pair P1, bottom pair P{Math.floor(pairCount / 2 + 1)}
+            Top pair P1, bottom pair P{Math.floor(pairCount / 2) + 1}
           </text>
         </>
       ) : (
