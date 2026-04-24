@@ -1,740 +1,0 @@
-Specification Notes for a (4n)-Strand Kumihimo Simulator
-1. Purpose
-Build a simulator for generalized kumihimo with (4n) strands arranged on integer-indexed slots around a circle.
-The simulator should allow:
-	•	arbitrary number of slots, default (32);
-	•	arbitrary (4n) strands, with (n \ge 1);
-	•	arbitrary initial strand colors;
-	•	arbitrary user-defined moves between integer slots;
-	•	tracking of slot occupancy over time;
-	•	estimation of braid-center displacement;
-	•	estimation of accumulated twist;
-	•	approximate rendering of visible color sequence/texture.
-This is not initially intended to be a physically exact fiber simulator. It should be a combinatorial-geometric simulator: strands occupy slots, moves transfer strands, and derived quantities estimate braid behavior.
-
-2. Core Objects
-2.1 Slots
-Let there be (M) slots arranged around a circle.
-Default:
-[ M=32 ]
-Slots are indexed:
-[ 0,1,\dots,M-1 ]
-Each slot has angular coordinate:
-[ \phi_j = \frac{2\pi j}{M} ]
-and unit position vector:
-[ u_j = \begin{pmatrix} \cos \phi_j\ \sin \phi_j \end{pmatrix} ]
-The simulator should allow (M) to be user-selected.
-
-2.2 Strands
-There are (K=4n) strands.
-Each strand (s) has:
-id: integer
-color: RGB / hex / named color
-current_slot: integer
-history: list of states or moves
-The initial configuration is a map:
-[ \operatorname{slot}_0(s) \in {0,\dots,M-1} ]
-Multiple strands per slot should be allowed in principle, but the UI may warn when collisions occur.
-A slot occupancy vector is:
-[ q_t(j)=#{s:\operatorname{slot}_t(s)=j} ]
-For a physical disk, the usual constraint is:
-[ q_t(j)\in {0,1} ]
-but a generalized simulator may permit:
-[ q_t(j)\ge 0 ]
-for experimental patterns.
-
-3. Moves
-3.1 Elementary Move
-An elementary move transfers one strand from a source slot (a) to a destination slot (b).
-Represent a move as:
-{
-  "source": a,
-  "target": b,
-  "strand_selector": "top" | "bottom" | "specific_id" | "latest" | ...
-}
-Since arbitrary moves are allowed, the simulator needs a rule for choosing which strand leaves a source slot if multiple strands occupy it.
-Possible selector policies:
-specific_id:
-    move the strand with a given id
-
-top:
-    move the most recently placed strand at that slot
-
-bottom:
-    move the least recently placed strand at that slot
-
-color:
-    move a strand matching a given color
-
-index:
-    move the kth strand in the slot stack
-A minimal version can require either:
-source slot contains exactly one strand
-or:
-the move explicitly names the strand id
-
-3.2 Compound Move
-A compound move is an ordered list of elementary moves.
-Example:
-[
-  {"source": 24, "target": 0},
-  {"source": 1, "target": 25}
-]
-For classic 8-strand round kumihimo, the natural unit is often a compound two-strand exchange.
-For general (4n), a compound move may have 2, 4, 8, or more elementary movements.
-
-3.3 Move Sequence
-A pattern is a possibly periodic sequence of compound moves:
-[ P = (M_1,M_2,\dots,M_L) ]
-The simulator applies:
-[ M_1,M_2,\dots,M_L,M_1,M_2,\dots ]
-unless the user supplies a finite sequence.
-
-4. State Update
-At time (t), the simulator has a strand-to-slot map:
-[ \sigma_t:S\to {0,\dots,M-1} ]
-An elementary move (m=(a\to b)) chooses strand (s) with:
-[ \sigma_t(s)=a ]
-and updates:
-[ \sigma_{t+1}(s)=b ]
-while all other strands remain fixed.
-The simulator should record:
-time index
-source slot
-target slot
-strand id
-color
-pre-move occupancy
-post-move occupancy
-computed displacement contribution
-computed twist contribution
-
-5. Occupancy Balance
-5.1 Slot-Level Balance
-For arbitrary slots, slot occupancy balance means:
-[ q_t(j)=q_0(j) ]
-for all (j).
-A move block of length (k) is slot-balanced if:
-[ q_{t+k}=q_t ]
-Equivalently, for every slot (j),
-[ #{\text{moves into }j}
-#{\text{moves out of }j} =0 ]
-inside that block.
-
-5.2 Region-Level Balance
-For (4n)-strand kumihimo, it is often useful to group slots into four sectors:
-North sector
-East sector
-South sector
-West sector
-With (M=32), a convenient default is:
-North: slots near 0
-East:  slots near 8
-South: slots near 16
-West:  slots near 24
-But arbitrary layouts should be supported.
-Define a sector map:
-[ g(j)\in{N,E,S,W} ]
-Then sector occupancy is:
-[ Q_t(X)=#{s:g(\sigma_t(s))=X} ]
-A (4n)-strand classical layout usually has:
-[ Q_t(N)=Q_t(E)=Q_t(S)=Q_t(W)=n ]
-A sector-balanced block satisfies:
-[ Q_{t+k}=Q_t ]
-Sector balance is weaker than slot balance.
-
-6. Braid-Center Estimate
-6.1 Intuition
-A single strand movement pulls the braid point in some direction. Repeated balanced patterns should keep this pull bounded and periodic. Bad random patterns may cause the braid center to wander.
-The simulator should compute an approximate braid-center displacement:
-[ C_T=\sum_{t=1}^{T} d(m_t) ]
-where (d(m_t)\in \mathbb{R}^2) is the displacement contribution of move (m_t).
-
-6.2 Basic Pull Vector
-For an elementary move (a\to b), use slot vectors:
-[ u_a= \begin{pmatrix} \cos(2\pi a/M)\ \sin(2\pi a/M) \end{pmatrix} ]
-[ u_b= \begin{pmatrix} \cos(2\pi b/M)\ \sin(2\pi b/M) \end{pmatrix} ]
-A simple displacement estimate is:
-[ d(a\to b)=\lambda(u_a+u_b) ]
-or:
-[ d(a\to b)=\lambda\frac{u_a+u_b}{2} ]
-where (\lambda) is a tunable scale factor.
-This estimates that the braid point is pulled toward the chord connecting source and target.
-However, for moves close to opposite slots, (u_a+u_b\approx 0), which may understate pull. An alternative is to use the midpoint of the actual crossing path.
-
-6.3 Chord-Midpoint Model
-Let the strand path be approximated by a chord from (u_a) to (u_b).
-The midpoint is:
-[ p_{ab}=\frac{u_a+u_b}{2} ]
-Then:
-[ d(a\to b)=\lambda p_{ab} ]
-This is convenient and bounded.
-For an exactly opposite move:
-[ u_b=-u_a ]
-so:
-[ p_{ab}=0 ]
-which says the move crosses through the center and contributes no off-center pull. This is plausible for idealized opposite moves.
-Adjacent moves produce nonzero (p_{ab}), so they pull toward a quadrant.
-
-6.4 Source-Destination Directional Model
-Another possible model is:
-[ d(a\to b)=\lambda(u_b-u_a) ]
-This measures transfer direction rather than crossing midpoint.
-It is useful for detecting net movement of strand population around the disk, but it is less directly tied to braid-point centering.
-Recommended default:
-[ \boxed{ d(a\to b)=\lambda\frac{u_a+u_b}{2} } ]
-with an optional mode:
-center_model = "chord_midpoint" | "transfer_direction"
-
-6.5 Compound-Move Center Contribution
-For compound move (M_t) consisting of elementary moves (m_{t,1},\dots,m_{t,r}):
-[ D(M_t)=\sum_{\ell=1}^{r} d(m_{t,\ell}) ]
-Then cumulative center estimate is:
-[ C_T=\sum_{t=1}^{T}D(M_t) ]
-The simulator should display:
-current center displacement vector
-current center radius ||C_T||
-center path trace
-per-period net center drift
-For a periodic pattern of length (L), compute:
-[ \Delta C_{\text{period}}=\sum_{t=1}^{L}D(M_t) ]
-Classification:
-ΔC_period = 0:
-    centered / periodic
-
-small ΔC_period:
-    small drift, maybe tolerable
-
-large ΔC_period:
-    likely off-center or unstable
-
-7. Twist Estimate
-7.1 Intuition
-Twist should not necessarily be bounded. Classic round braids often accumulate deliberate helical twist.
-The better condition is:
-[ H_T=\mu T+O(1) ]
-where:
-[ H_T ]
-is accumulated twist, and:
-[ \mu ]
-is average twist rate.
-A stable pattern may have linear twist with bounded residual.
-
-7.2 Angular Difference
-For an elementary move (a\to b), define angular displacement:
-[ \Delta(a,b)
-\operatorname{wrap}_{(-\pi,\pi]} \left( \phi_b-\phi_a \right) ]
-where:
-[ \phi_j=2\pi j/M ]
-The wrap function returns the signed shortest angular difference.
-A simple twist contribution is:
-[ \tau(a\to b)=\frac{\Delta(a,b)}{2\pi} ]
-measured in turns.
-This counts clockwise/counterclockwise slot travel.
-
-7.3 Problem with Pure Angular Difference
-For kumihimo, a strand may physically move across the center rather than around the rim. A move from slot (24) to slot (0) on a 32-slot disk has angular difference:
-[ \Delta = \frac{8}{32}2\pi=\frac{\pi}{2} ]
-but the physical path is often across the disk, not around the circumference.
-So angular-difference twist is only a proxy.
-
-7.4 Crossing-Order Twist Model
-A better combinatorial model estimates twist from crossing handedness.
-For an elementary move (a\to b), define:
-source angle: φ_a
-target angle: φ_b
-move chord: segment from u_a to u_b
-When two consecutive strands cross near the braid point, their order determines local handedness.
-For a compound move with at least two elementary moves:
-[ m_1=(a_1\to b_1),\quad m_2=(a_2\to b_2) ]
-define chord vectors:
-[ v_1=u_{b_1}-u_{a_1} ]
-[ v_2=u_{b_2}-u_{a_2} ]
-The signed crossing orientation is:
-[ \chi(m_1,m_2)
-\operatorname{sign} \left( v_1 \times v_2 \right) ]
-where in 2D:
-[ v_1\times v_2
-v_{1x}v_{2y}-v_{1y}v_{2x} ]
-Then define twist contribution:
-[ \tau(M_t)=\alpha\chi(m_1,m_2) ]
-for a 2-move compound move.
-Here (\alpha) is a calibration constant. For classic 8-strand round braid, choose:
-[ \alpha=\frac14 ]
-so one compound unit contributes approximately a quarter-turn.
-
-7.5 General Compound-Move Twist
-For compound moves with (r) elementary moves, use pairwise crossing contributions:
-[ \tau(M_t)
-\alpha \sum_{1\le i<j\le r} w_{ij} \operatorname{sign}(v_i\times v_j) ]
-where (w_{ij}) is a weighting coefficient.
-Recommended simple default:
-[ w_{ij}=\frac{1}{\binom{r}{2}} ]
-so:
-[ \tau(M_t)
-\alpha \frac{1}{\binom{r}{2}} \sum_{i<j} \operatorname{sign}(v_i\times v_j) ]
-This normalizes the compound-move twist to roughly the same scale independent of (r).
-
-7.6 Cumulative Twist
-Let:
-[ H_T=\sum_{t=1}^{T}\tau(M_t) ]
-Compute the period average:
-[ \mu=\frac{1}{L}\sum_{t=1}^{L}\tau(M_t) ]
-Then residual twist is:
-[ R_T=H_T-\mu T ]
-The simulator should display:
-cumulative twist H_T
-average twist rate μ
-residual twist R_T
-per-period net twist
-Classification:
-H_T = μT exactly:
-    perfectly regular helical twist
-
-H_T = μT + bounded periodic residual:
-    controlled periodic twist
-
-H_T has residual growing like sqrt(T):
-    random-walk-like twist
-
-H_T has residual growing linearly after subtracting intended μ:
-    biased or unstable twist
-
-8. Color Visibility Estimate
-8.1 Goal
-The simulator should render a tentative estimate of which colors appear on the braid surface over time.
-This is hard to do exactly without physical geometry. Use a heuristic “surface exposure” model.
-Each elementary or compound move adds a new visible segment associated with the moved strand.
-
-8.2 Basic Segment Model
-For each elementary move (m_t), append a braid segment:
-{
-  "time": t,
-  "strand_id": s,
-  "color": color(s),
-  "source": a,
-  "target": b,
-  "angle": visible_angle,
-  "twist": H_t,
-  "center": C_t
-}
-The visible angle can be estimated by:
-[ \psi_t = \arg(p_{ab}) + 2\pi H_t ]
-where:
-[ p_{ab}=\frac{u_a+u_b}{2} ]
-If (p_{ab}=0), use an alternative:
-[ \psi_t = \arg(u_b-u_a)+2\pi H_t ]
-Then wrap:
-[ \psi_t \in [0,2\pi) ]
-This gives an approximate angular location of the colored strand on the braid surface.
-
-8.3 Rendering as a Cylindrical Braid Texture
-Represent the braid as a cylinder unwrapped into a rectangle:
-horizontal axis: surface angle ψ
-vertical axis: braid length / time
-Each moved strand adds a colored mark at:
-[ x_t = \frac{\psi_t}{2\pi} ]
-[ y_t = t ]
-The mark can be drawn as a short diagonal stroke whose slope depends on twist:
-[ \text{slope} \propto \mu ]
-or using local difference:
-[ \psi_t-\psi_{t-1} ]
-Recommended rendering:
-For each visible segment:
-    draw a short colored diagonal band
-    centered at x = ψ_t / 2π
-    y = time index
-    width = strand thickness estimate
-    opacity = exposure weight
-
-8.4 Exposure Weight
-Not every move produces equal visibility. Estimate exposure using distance of chord midpoint from center:
-[ \rho_{ab}=\left|\frac{u_a+u_b}{2}\right| ]
-For opposite moves, (\rho_{ab}=0), even though they may be highly visible. Therefore use:
-[ e_{ab}=e_0 + e_1(1-\rho_{ab}) + e_2\rho_{ab} ]
-A simpler default:
-[ e_{ab}=1 ]
-Initially, every moved strand contributes one visible segment.
-Later versions can incorporate:
-strand over/under order
-tension
-compound move order
-radial exposure
-neighbor occlusion
-
-8.5 Color Frequency Metrics
-Compute counts over time:
-[ F_c(T)=#{\text{visible segments of color }c\text{ up to time }T} ]
-Also compute rolling window frequencies:
-[ F_c(t,W)=#{\text{segments of color }c\text{ in }[t-W,t]} ]
-Display:
-overall color histogram
-rolling color histogram
-dominant surface colors
-periodic color repeat length, if detected
-
-9. Pattern Diagnostics
-The simulator should run diagnostics on a proposed move sequence.
-9.1 Occupancy Diagnostics
-For a period (P):
-[ \Delta q(j)= #{\text{moves into }j}
-#{\text{moves out of }j} ]
-Report:
-slot-balanced if Δq(j)=0 for all j
-sector-balanced if ΔQ(X)=0 for all sectors X
-Also report maximum temporary imbalance:
-[ B_{\max}=\max_t |q_t-q_0|_1 ]
-and time-to-rebalance:
-smallest k such that q_{t+k}=q_t
-where applicable.
-
-9.2 Center Diagnostics
-For period (P):
-[ \Delta C_P=\sum_{m\in P}d(m) ]
-Report:
-period center drift vector
-period center drift magnitude
-temporary center radius max over period
-A pattern is centered if:
-[ \Delta C_P=0 ]
-within tolerance.
-
-9.3 Twist Diagnostics
-For period (P):
-[ \Delta H_P=\sum_{m\in P}\tau(m) ]
-Average twist rate:
-[ \mu=\frac{\Delta H_P}{|P|} ]
-Report:
-period twist
-average twist per compound move
-average twist per elementary move
-residual twist over period
-For periodic patterns, residual twist is automatically bounded once (\mu) is defined, but the simulator should still show within-period variation.
-
-9.4 Strand Fairness
-A good kumihimo pattern should move every strand regularly.
-For each strand (s), compute gaps between movement times:
-[ g_s = \max_i(t_{i+1}(s)-t_i(s)) ]
-Report:
-max strand waiting time
-average strand waiting time
-strands never moved
-strands overused
-A pathological pattern may be slot-balanced but repeatedly move only a few strands.
-
-9.5 Locality / Float Estimate
-For move (a\to b), define circular slot distance:
-[ \delta(a,b)
-\min(|a-b|, M-|a-b|) ]
-Very large or very small distances may be suspicious depending on intended braid type.
-For center-crossing kumihimo moves, moves near half-circle distance are common:
-[ \delta(a,b)\approx M/2 ]
-For adjacent or flat structures, smaller distances may be valid.
-Report:
-move distance histogram
-longest move
-shortest move
-estimated float risk
-A simple float-risk score:
-[ \operatorname{floatRisk}(a,b)
-\left| \delta(a,b)-\frac{M}{2} \right| ]
-for round center-crossing braids.
-For general experimental braids, allow this diagnostic to be disabled or reparameterized.
-
-10. Suggested Data Structures
-10.1 Strand
-type Strand = {
-  id: number;
-  color: string;
-  slot: number;
-  moveCount: number;
-  history: StrandHistoryEntry[];
-};
-10.2 Slot State
-type SlotState = {
-  slotIndex: number;
-  strands: number[]; // strand ids, ordered bottom-to-top
-};
-10.3 Elementary Move
-type ElementaryMove = {
-  source: number;
-  target: number;
-  selector?: 
-    | { kind: "specific_id"; strandId: number }
-    | { kind: "top" }
-    | { kind: "bottom" }
-    | { kind: "index"; index: number };
-};
-10.4 Compound Move
-type CompoundMove = {
-  name?: string;
-  moves: ElementaryMove[];
-};
-10.5 Simulation State
-type SimulationState = {
-  step: number;
-  slots: SlotState[];
-  strands: Map<number, Strand>;
-
-  center: { x: number; y: number };
-  centerHistory: { x: number; y: number }[];
-
-  twist: number;
-  twistHistory: number[];
-
-  visibleSegments: VisibleSegment[];
-};
-10.6 Visible Segment
-type VisibleSegment = {
-  time: number;
-  strandId: number;
-  color: string;
-
-  source: number;
-  target: number;
-
-  surfaceAngle: number; // radians
-  twist: number;
-  center: { x: number; y: number };
-
-  exposure: number;
-};
-
-11. Basic Algorithm
-For each compound move:
-1. Store pre-move state.
-
-2. For each elementary move:
-      a. Select strand from source slot.
-      b. Remove strand from source slot.
-      c. Add strand to target slot.
-      d. Update strand.current_slot.
-      e. Compute elementary center contribution.
-      f. Record visible segment candidate.
-
-3. Compute compound twist contribution.
-      Use crossing-order model for the elementary moves in the compound move.
-
-4. Update cumulative twist.
-
-5. Update cumulative center.
-
-6. Finalize visible segment angles using updated twist and center.
-
-7. Run diagnostics.
-
-12. Pseudocode
-function simulateCompoundMove(state: SimulationState, compound: CompoundMove, config: Config) {
-  const elementaryRecords: ElementaryRecord[] = [];
-
-  for (const move of compound.moves) {
-    const strandId = selectStrand(state.slots[move.source], move.selector);
-
-    removeStrand(state.slots[move.source], strandId);
-    addStrand(state.slots[move.target], strandId);
-
-    const strand = state.strands.get(strandId)!;
-    strand.slot = move.target;
-    strand.moveCount += 1;
-
-    const d = centerContribution(move.source, move.target, config.slotCount, config.centerScale);
-
-    elementaryRecords.push({
-      source: move.source,
-      target: move.target,
-      strandId,
-      color: strand.color,
-      centerContribution: d
-    });
-  }
-
-  const D = sumVectors(elementaryRecords.map(r => r.centerContribution));
-  state.center.x += D.x;
-  state.center.y += D.y;
-  state.centerHistory.push({ ...state.center });
-
-  const tau = twistContribution(elementaryRecords, config);
-  state.twist += tau;
-  state.twistHistory.push(state.twist);
-
-  for (const r of elementaryRecords) {
-    const angle = visibleAngle(r.source, r.target, state.twist, config.slotCount);
-    state.visibleSegments.push({
-      time: state.step,
-      strandId: r.strandId,
-      color: r.color,
-      source: r.source,
-      target: r.target,
-      surfaceAngle: angle,
-      twist: state.twist,
-      center: { ...state.center },
-      exposure: 1
-    });
-  }
-
-  state.step += 1;
-}
-
-13. Default Configuration
-const defaultConfig = {
-  slotCount: 32,
-  strandCount: 16,
-
-  centerScale: 1.0,
-  centerModel: "chord_midpoint",
-
-  twistModel: "crossing_order",
-  twistScale: 0.25,
-
-  selectorPolicy: "specific_id_or_top",
-
-  sectorCount: 4,
-  sectorAssignments: "quadrants",
-
-  renderMode: "cylindrical_texture"
-};
-
-14. Example: 16-Strand Layout on 32 Slots
-A simple 16-strand starting configuration might place four strands in each quadrant.
-For example:
-North:  30, 31, 0, 1
-East:   6, 7, 8, 9
-South:  14, 15, 16, 17
-West:   22, 23, 24, 25
-With strand IDs:
-N0, N1, N2, N3
-E0, E1, E2, E3
-S0, S1, S2, S3
-W0, W1, W2, W3
-A paired opposite exchange might be:
-[
-  {"source": 17, "target": 1},
-  {"source": 0, "target": 16}
-]
-After the first elementary move, slot/sector occupancy is temporarily unbalanced.
-After the second elementary move, sector balance may be restored.
-Slot balance may or may not be restored depending on the exact target slots.
-
-15. Important Conceptual Distinctions
-15.1 Slot Balance vs Sector Balance
-A pattern may preserve four-sector balance without returning every strand to the same local slot distribution.
-For example:
-N has 4 strands before and after
-but the strands occupy different N slots
-This is usually fine.
-Slot balance is stricter.
-
-15.2 Occupancy Balance vs Center Balance
-A move sequence may restore occupancy but still pull the braid center off-axis.
-Example:
-A -> B
-B -> A
-This restores counts, but if both chords lie in the same quadrant, the center estimate may not cancel.
-Therefore diagnostics should separately track:
-occupancy
-center displacement
-twist
-strand fairness
-locality
-
-15.3 Twist Growth Is Not Necessarily Bad
-Classic braids often satisfy:
-[ H_T=\mu T+O(1) ]
-not:
-[ H_T=O(1) ]
-Linear twist is acceptable if it is regular.
-The simulator should not label linear twist as bad by default.
-Instead, report:
-average twist rate
-residual twist
-periodic regularity
-
-16. Recommended Simulator Outputs
-The simulator UI should show:
-1. Circular disk view
-    - slots
-    - strands/colors
-    - current move animation
-
-2. Braid center trace
-    - current C_T
-    - path over time
-    - per-period drift vector
-
-3. Twist plot
-    - cumulative twist H_T
-    - fitted average μT
-    - residual H_T - μT
-
-4. Cylindrical color texture
-    - approximate visible color sequence
-
-5. Diagnostics panel
-    - slot occupancy
-    - sector occupancy
-    - max imbalance
-    - time-to-rebalance
-    - center drift
-    - twist rate
-    - strand fairness
-    - move distance/float risk
-
-17. Mathematical Summary
-Given:
-[ M=\text{number of slots} ]
-[ K=4n=\text{number of strands} ]
-[ u_j=(\cos(2\pi j/M),\sin(2\pi j/M)) ]
-An elementary move:
-[ m=(a\to b) ]
-updates strand position and contributes center displacement:
-[ d(m)=\lambda\frac{u_a+u_b}{2} ]
-A compound move:
-[ M_t=(m_{t,1},\dots,m_{t,r}) ]
-has center contribution:
-[ D(M_t)=\sum_{\ell=1}^{r}d(m_{t,\ell}) ]
-and cumulative center:
-[ C_T=\sum_{t=1}^{T}D(M_t) ]
-A centered periodic pattern satisfies:
-[ \sum_{t=1}^{L}D(M_t)=0 ]
-Twist contribution may be estimated by crossing orientation:
-[ \tau(M_t)
-\alpha \frac{1}{\binom{r}{2}} \sum_{i<j} \operatorname{sign}(v_i\times v_j) ]
-where:
-[ v_i=u_{b_i}-u_{a_i} ]
-and cumulative twist is:
-[ H_T=\sum_{t=1}^{T}\tau(M_t) ]
-A controlled periodic twist satisfies:
-[ H_T=\mu T+O(1) ]
-with:
-[ \mu=\frac{1}{L}\sum_{t=1}^{L}\tau(M_t) ]
-Visible color angle can be estimated by:
-[ \psi_t=\arg\left(\frac{u_a+u_b}{2}\right)+2\pi H_t ]
-with fallback:
-[ \psi_t=\arg(u_b-u_a)+2\pi H_t ]
-when:
-[ u_a+u_b=0 ]
-
-18. Implementation Advice
-Start with a deliberately simple version:
-M = 32 slots
-K = 16 strands
-one strand per occupied slot
-compound moves are explicit lists of elementary moves
-center model = chord midpoint
-twist model = crossing-order
-visibility = one colored segment per elementary move
-Then add:
-multiple strands per slot
-strand stack policies
-sector definitions
-pattern-period detection
-random move grammars
-advanced color rendering
-calibration against known braid patterns
-The most important design choice is to keep these quantities separate:
-slot occupancy
-sector occupancy
-center displacement
-twist
-surface color estimate
-They are related, but none of them fully determines the others.

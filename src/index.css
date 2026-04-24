@@ -6,6 +6,7 @@
   --accent: #2563eb;
   --accent-2: #7c3aed;
   --max-content-width: 1180px;
+  --animation-duration: 700ms;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -492,6 +493,180 @@ code {
   display: inline-block;
 }
 
+.sequence-editor {
+  width: 100%;
+  min-height: 96px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  resize: vertical;
+}
+
+.strand-editor-row strong {
+  margin-left: auto;
+  font-size: 0.85rem;
+}
+
+.kongo-disk {
+  display: block;
+  width: 100%;
+}
+
+.kongo-pair-guide {
+  stroke: color-mix(in srgb, var(--accent) 35%, var(--border));
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.kongo-pair-guide.active {
+  stroke: color-mix(in srgb, var(--accent) 70%, var(--border));
+  stroke-width: 13;
+}
+
+.kongo-pair-index,
+.kongo-slot-label,
+.kongo-center-label {
+  fill: var(--fg);
+  font-size: 10px;
+}
+
+.kongo-center-label.subtle {
+  fill: color-mix(in srgb, var(--fg) 70%, transparent);
+}
+
+.kongo-strand-node {
+  /* transform is set entirely via useLayoutEffect to ensure animations always
+     go from the correct "previous" position. No CSS transition here. */
+}
+
+.kongo-strand-label {
+  fill: white;
+  font-size: 9px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.kongo-motion-trail {
+  stroke: color-mix(in srgb, var(--fg) 20%, transparent);
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+  pointer-events: none;
+}
+
+/* Badge shown next to the disk panel title */
+.kongo-kind-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+
+.kongo-kind-badge.kongo-kind-cross {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.kongo-kind-badge.kongo-kind-rotate {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+}
+
+.kongo-kind-badge.kongo-kind-transition {
+  border-color: #f59e0b;
+  color: #b45309;
+}
+
+.kongo-action-move {
+  font-size: 0.78rem;
+  opacity: 0.7;
+}
+
+.kongo-slot-strip,
+.kongo-pair-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.kongo-slot-chip,
+.kongo-final-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 0.84rem;
+}
+
+.kongo-pair-list {
+  margin-top: 12px;
+}
+
+.kongo-swatch,
+.kongo-pair-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid var(--fg);
+  display: inline-block;
+}
+
+.kongo-pair-stack {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.kongo-action-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.kongo-action-summary {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.kongo-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.kongo-action-participant {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.kongo-action-participant.moving {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.kongo-action-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  font-size: 0.82rem;
+  color: color-mix(in srgb, var(--fg) 76%, transparent);
+}
+
 @media (max-width: 640px) {
   body {
     padding: 12px;
@@ -500,4 +675,18 @@ code {
   .page-header h1 {
     text-align: center;
   }
+}
+
+/* ── Bracelet pattern preview ─────────────────────────────────── */
+
+.kumihimo-bracelet-scroll {
+  overflow: auto;
+  max-height: 520px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+
+.kumihimo-bracelet-svg {
+  display: block;
 }

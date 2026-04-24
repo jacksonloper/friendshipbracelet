@@ -22,7 +22,7 @@ export default function App() {
     <div>
       <nav className="app-nav" aria-label="App pages">
         <a href="#/" className={route === 'bracelet' ? 'active' : ''}>Bracelet designer</a>
-        <a href="#/kumihimo" className={route === 'kumihimo' ? 'active' : ''}>Kumihimo modeler</a>
+        <a href="#/kumihimo" className={route === 'kumihimo' ? 'active' : ''}>Kongo gumi</a>
       </nav>
       {route === 'kumihimo' ? <KumihimoPage /> : <BraceletDesigner />}
     </div>

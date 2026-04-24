@@ -1,84 +1,66 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  CompoundMove,
-  KumihimoConfig,
-  StepSnapshot,
-  StrandSpec,
-  compoundMovesToJSON,
-  createDefaultCompoundMoves,
-  createDefaultKumihimoConfig,
+  computeKumihimoPattern,
+  createDefaultKongoSequence,
   createDefaultStrands,
-  parseCompoundMoves,
+  ensureStrandCountDivisibleByFour,
+  parseKongoSequence,
   resizeStrands,
-  simulateKumihimo,
+  simulateKongo,
+  type KongoSnapshot,
+  type StrandSpec,
 } from './kumihimoModel';
 
+const DEFAULT_STRAND_COUNT = 8;
 const DISK_SIZE = 360;
-const RING_RADIUS = 132;
-const CHART_PADDING = 10;
-const CHART_INSET = CHART_PADDING * 2;
+const RING_RADIUS = 130;
+const MIN_SLOT_RADIUS = 9;
+const MAX_SLOT_RADIUS = 16;
+const SLOT_RADIUS_SCALE_FACTOR = 42;
 
 export default function KumihimoPage() {
-  const [config, setConfig] = useState<KumihimoConfig>(createDefaultKumihimoConfig);
-  const [strands, setStrands] = useState<StrandSpec[]>(() => createDefaultStrands(32, 16));
-  const [moveText, setMoveText] = useState(() => compoundMovesToJSON(createDefaultCompoundMoves(32)));
+  const [strands, setStrands] = useState<StrandSpec[]>(() => createDefaultStrands(DEFAULT_STRAND_COUNT));
+  const [sequenceText, setSequenceText] = useState(createDefaultKongoSequence);
   const [selectedStep, setSelectedStep] = useState(0);
 
-  const parsedMoves = useMemo(() => parseCompoundMoves(moveText, config.slotCount), [config.slotCount, moveText]);
-  const simulation = useMemo(
-    () => simulateKumihimo(config, strands, parsedMoves.compounds),
-    [config, parsedMoves.compounds, strands],
-  );
+  const parsedSequence = useMemo(() => parseKongoSequence(sequenceText), [sequenceText]);
+  const simulation = useMemo(() => simulateKongo(strands, parsedSequence.sequence), [parsedSequence.sequence, strands]);
+  const snapshot = simulation.snapshots[selectedStep] ?? simulation.snapshots[0];
+  const previousSnapshot = simulation.snapshots[Math.max(selectedStep - 1, 0)] ?? simulation.snapshots[0];
 
   useEffect(() => {
     setSelectedStep(previous => Math.min(previous, simulation.snapshots.length - 1));
   }, [simulation.snapshots.length]);
 
-  const snapshot = simulation.snapshots[selectedStep] ?? simulation.snapshots[0];
-  const totalVisibleSegments = simulation.visibleSegments.length;
-
-  function updateConfig<K extends keyof KumihimoConfig>(key: K, value: KumihimoConfig[K]) {
-    setConfig(previous => ({ ...previous, [key]: value }));
+  function handleStrandCountChange(value: number) {
+    if (!Number.isFinite(value)) return;
+    setStrands(previous => resizeStrands(previous, value));
+    setSelectedStep(0);
   }
 
-  function updateStrand(index: number, patch: Partial<StrandSpec>) {
+  function updateStrandColor(index: number, color: string) {
     setStrands(previous => previous.map((strand, strandIndex) => (
-      strandIndex === index ? { ...strand, ...patch } : strand
+      strandIndex === index ? { ...strand, color } : strand
     )));
   }
 
-  function handleSlotCountChange(value: number) {
-    if (!Number.isFinite(value)) return;
-    const slotCount = Math.max(8, value);
-    setConfig(previous => ({ ...previous, slotCount }));
-    setStrands(previous => resizeStrands(previous, config.strandCount, slotCount));
-    setMoveText(compoundMovesToJSON(createDefaultCompoundMoves(slotCount)));
-    setSelectedStep(0);
-  }
-
-  function handleStrandCountChange(value: number) {
-    if (!Number.isFinite(value)) return;
-    const strandCount = Math.max(4, value - (value % 4));
-    setConfig(previous => ({ ...previous, strandCount }));
-    setStrands(previous => resizeStrands(previous, strandCount, config.slotCount));
-    setSelectedStep(0);
-  }
-
   function resetDefaults() {
-    const nextConfig = createDefaultKumihimoConfig();
-    setConfig(nextConfig);
-    setStrands(createDefaultStrands(nextConfig.slotCount, nextConfig.strandCount));
-    setMoveText(compoundMovesToJSON(createDefaultCompoundMoves(nextConfig.slotCount)));
+    setStrands(createDefaultStrands(DEFAULT_STRAND_COUNT));
+    setSequenceText(createDefaultKongoSequence());
     setSelectedStep(0);
   }
+
+  const finalSnapshot = simulation.snapshots[simulation.snapshots.length - 1] ?? simulation.snapshots[0];
 
   return (
     <div className="kumihimo-page">
       <div className="page-header">
         <div>
-          <h1>Kumihimo Pattern Modeler</h1>
+          <h1>Kongo Gumi Pattern Builder</h1>
           <p className="page-description">
-            Explore slot occupancy, center drift, twist, and a surface-color estimate for generalized (4n)-strand kumihimo.
+            Each Z/S step is split into two sub-steps: the 4-strand cross (only slots 0, 1, 2n, 2n+1
+            move), then a counter-clockwise disk rotation by 2. Use the slider to step through each
+            sub-step and watch the strands animate.
           </p>
         </div>
         <button type="button" onClick={resetDefaults}>Reset defaults</button>
@@ -86,147 +68,81 @@ export default function KumihimoPage() {
 
       <div className="kumihimo-grid">
         <section className="panel">
-          <h2>Configuration</h2>
+          <h2>Setup</h2>
           <div className="field-grid">
-            <label>
-              Slots
-              <input
-                type="number"
-                min={8}
-                step={4}
-                value={config.slotCount}
-                onChange={event => handleSlotCountChange(parseInt(event.target.value, 10))}
-              />
-            </label>
             <label>
               Strands (4n)
               <input
                 type="number"
                 min={4}
                 step={4}
-                value={config.strandCount}
+                value={strands.length}
                 onChange={event => handleStrandCountChange(parseInt(event.target.value, 10))}
               />
             </label>
-            <label>
-              Compound repeats
-              <input
-                type="number"
-                min={1}
-                max={64}
-                value={config.repeats}
-                onChange={event => {
-                  const value = parseInt(event.target.value, 10);
-                  if (!Number.isFinite(value)) return;
-                  updateConfig('repeats', Math.max(1, value));
-                }}
-              />
-            </label>
-            <label>
-              Center scale
-              <input
-                type="number"
-                min={0}
-                step={0.1}
-                value={config.centerScale}
-                onChange={event => {
-                  const value = parseFloat(event.target.value);
-                  if (!Number.isFinite(value)) return;
-                  updateConfig('centerScale', Math.max(0, value));
-                }}
-              />
-            </label>
-            <label>
-              Twist scale
-              <input
-                type="number"
-                min={0}
-                step={0.05}
-                value={config.twistScale}
-                onChange={event => {
-                  const value = parseFloat(event.target.value);
-                  if (!Number.isFinite(value)) return;
-                  updateConfig('twistScale', Math.max(0, value));
-                }}
-              />
-            </label>
           </div>
+          <label className="timeline-label">
+            Sequence
+            <textarea
+              className="sequence-editor"
+              value={sequenceText}
+              onChange={event => {
+                setSequenceText(event.target.value);
+                setSelectedStep(0);
+              }}
+              spellCheck={false}
+              aria-label="Kongo gumi Z and S sequence"
+            />
+          </label>
           <p className="note">
-            The simulator uses the plan&apos;s chord-midpoint center estimate and crossing-order twist heuristic to highlight drift and rotation over repeated compound moves.
+            Use only Z and S. Z cross: 0→1→2n→2n+1→0. S cross: 2n→1→0→2n+1→2n.
+            Each cross is followed by a counter-clockwise disk rotation by 2. A direction change inserts a pair-swap transition.
           </p>
+          {parsedSequence.errors.length > 0 ? (
+            <div className="error-list">
+              {parsedSequence.errors.map(error => <div key={error}>{error}</div>)}
+            </div>
+          ) : null}
+          {simulation.errors.length > 0 ? (
+            <div className="error-list">
+              {simulation.errors.map(error => <div key={error}>{error}</div>)}
+            </div>
+          ) : null}
+          <div className="metric-grid">
+            <Metric label="Strand count" value={String(ensureStrandCountDivisibleByFour(strands.length))} />
+            <Metric label="Sequence steps" value={String(parsedSequence.sequence.length)} />
+            <Metric label="Sub-steps" value={String(Math.max(simulation.snapshots.length - 1, 0))} />
+            <Metric label="Final move" value={finalSnapshot.move ?? '—'} />
+          </div>
         </section>
 
         <section className="panel">
-          <h2>Initial strands</h2>
+          <h2>Starting strand colors</h2>
           <div className="strand-editor">
             {strands.map((strand, index) => (
               <div key={strand.id} className="strand-editor-row">
-                <span>#{strand.id}</span>
+                <span>Slot {index}</span>
                 <input
                   type="color"
                   value={strand.color}
-                  onChange={event => updateStrand(index, { color: event.target.value })}
-                  aria-label={`Color for strand ${strand.id}`}
+                  onChange={event => updateStrandColor(index, event.target.value)}
+                  aria-label={`Color for strand ${strand.id} in slot ${index}`}
                 />
-                <label>
-                  Slot
-                  <input
-                    type="number"
-                    min={0}
-                    max={config.slotCount - 1}
-                    value={strand.slot}
-                    onChange={event => {
-                      const value = parseInt(event.target.value, 10);
-                      if (!Number.isFinite(value)) return;
-                      updateStrand(index, { slot: value });
-                    }}
-                  />
-                </label>
+                <strong>#{strand.id}</strong>
               </div>
             ))}
           </div>
         </section>
       </div>
 
-      <section className="panel">
-        <div className="panel-header">
-          <h2>Compound move pattern</h2>
-          <button type="button" onClick={() => setMoveText(compoundMovesToJSON(createDefaultCompoundMoves(config.slotCount)))}>
-            Load default pattern
-          </button>
-        </div>
-        <textarea
-          className="code-editor"
-          value={moveText}
-          onChange={event => setMoveText(event.target.value)}
-          spellCheck={false}
-          aria-label="Compound move pattern JSON"
-        />
-        {parsedMoves.errors.length > 0 ? (
-          <div className="error-list">
-            {parsedMoves.errors.map(error => <div key={error}>{error}</div>)}
-          </div>
-        ) : (
-          <p className="note">
-            {parsedMoves.compounds.length} compound move{parsedMoves.compounds.length === 1 ? '' : 's'} loaded.
-            Selectors support <code>top</code>, <code>bottom</code>, <code>index</code>, and <code>specific_id</code>.
-          </p>
-        )}
-        {simulation.errors.length > 0 ? (
-          <div className="error-list">
-            {simulation.errors.map(error => <div key={error}>{error}</div>)}
-          </div>
-        ) : null}
-      </section>
-
       <div className="kumihimo-grid">
         <section className="panel">
           <div className="panel-header">
             <h2>Disk view</h2>
-            <span>{snapshot?.compoundName ?? 'Initial layout'}</span>
+            <span className={`kongo-kind-badge kongo-kind-${snapshot.kind}`}>{formatStepLabel(snapshot)}</span>
           </div>
           <label className="timeline-label">
-            Step {selectedStep} / {Math.max(simulation.snapshots.length - 1, 0)}
+            Sub-step {snapshot.subStep} / {Math.max(simulation.snapshots.length - 1, 0)}
             <input
               type="range"
               min={0}
@@ -235,93 +151,21 @@ export default function KumihimoPage() {
               onChange={event => setSelectedStep(parseInt(event.target.value, 10))}
             />
           </label>
-          {snapshot ? <KumihimoDisk snapshot={snapshot} strands={strands} slotCount={config.slotCount} /> : null}
+          <KongoDisk snapshot={snapshot} />
         </section>
 
         <section className="panel">
-          <h2>Center trace</h2>
-          <CenterTrace history={simulation.centerHistory} />
-          <div className="metric-grid">
-            <Metric label="Current center" value={`${formatNumber(snapshot?.center.x ?? 0)}, ${formatNumber(snapshot?.center.y ?? 0)}`} />
-            <Metric label="Max radius" value={formatNumber(simulation.diagnostics.maxCenterRadius)} />
-            <Metric label="Period drift" value={formatNumber(simulation.diagnostics.periodCenterDriftMagnitude)} />
-            <Metric label="Rebalance step" value={simulation.diagnostics.timeToRebalance === null ? '—' : String(simulation.diagnostics.timeToRebalance)} />
-          </div>
+          <h2>Current sub-step</h2>
+          <KongoSubStepCard snapshot={snapshot} previousSnapshot={previousSnapshot} />
         </section>
       </div>
 
-      <div className="kumihimo-grid">
+      {parsedSequence.sequence.length > 0 && parsedSequence.sequence.every(m => m === 'Z') && (
         <section className="panel">
-          <h2>Twist</h2>
-          <TwistTrace history={simulation.twistHistory} />
-          <div className="metric-grid">
-            <Metric label="Current twist" value={formatNumber(snapshot?.twist ?? 0)} />
-            <Metric label="Per period" value={formatNumber(simulation.diagnostics.periodTwist)} />
-            <Metric label="Avg / compound" value={formatNumber(simulation.diagnostics.averageTwistPerCompound)} />
-            <Metric label="Residual max" value={formatNumber(simulation.diagnostics.residualTwistMax)} />
-          </div>
+          <h2>Bracelet pattern</h2>
+          <KumihimoBraceletPattern initialStrands={strands} />
         </section>
-
-        <section className="panel">
-          <h2>Surface texture estimate</h2>
-          <TexturePreview segments={simulation.visibleSegments} />
-          <div className="metric-grid">
-            <Metric label="Visible segments" value={String(totalVisibleSegments)} />
-            <Metric label="Shortest move" value={simulation.diagnostics.shortestMove === null ? '—' : String(simulation.diagnostics.shortestMove)} />
-            <Metric label="Longest move" value={simulation.diagnostics.longestMove === null ? '—' : String(simulation.diagnostics.longestMove)} />
-            <Metric label="Float risk" value={formatNumber(simulation.diagnostics.averageFloatRisk)} />
-          </div>
-        </section>
-      </div>
-
-      <div className="kumihimo-grid">
-        <section className="panel">
-          <h2>Occupancy diagnostics</h2>
-          <div className="metric-grid">
-            <Metric label="Slot-balanced" value={simulation.diagnostics.slotBalanced ? 'Yes' : 'No'} />
-            <Metric label="Sector-balanced" value={simulation.diagnostics.sectorBalanced ? 'Yes' : 'No'} />
-            <Metric label="Max imbalance" value={String(simulation.diagnostics.maxTemporaryImbalance)} />
-            <Metric
-              label="Sector delta"
-              value={`N ${simulation.diagnostics.sectorDelta.N}, E ${simulation.diagnostics.sectorDelta.E}, S ${simulation.diagnostics.sectorDelta.S}, W ${simulation.diagnostics.sectorDelta.W}`}
-            />
-          </div>
-          <div className="chip-list">
-            {simulation.diagnostics.slotDelta.map((delta, slot) => (
-              <span key={slot} className={`chip ${delta === 0 ? '' : 'chip-warn'}`}>
-                {slot}: {delta > 0 ? '+' : ''}{delta}
-              </span>
-            ))}
-          </div>
-        </section>
-
-        <section className="panel">
-          <h2>Fairness + color visibility</h2>
-          <div className="metric-grid">
-            <Metric label="Max wait" value={String(simulation.diagnostics.maxWaitingTime)} />
-            <Metric label="Avg wait" value={formatNumber(simulation.diagnostics.averageWaitingTime)} />
-            <Metric label="Never moved" value={simulation.diagnostics.neverMoved.length === 0 ? 'None' : simulation.diagnostics.neverMoved.join(', ')} />
-            <Metric label="Overused" value={simulation.diagnostics.overused.length === 0 ? 'None' : simulation.diagnostics.overused.join(', ')} />
-          </div>
-          <div className="chip-list">
-            {Object.entries(simulation.diagnostics.colorHistogram).map(([color, count]) => (
-              <span key={color} className="chip chip-color">
-                <span className="color-swatch" style={{ backgroundColor: color }} aria-hidden="true" />
-                {count}
-              </span>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      <section className="panel">
-        <h2>Move distance histogram</h2>
-        <div className="chip-list">
-          {Object.entries(simulation.diagnostics.moveDistanceHistogram).map(([distance, count]) => (
-            <span key={distance} className="chip">{distance}: {count}</span>
-          ))}
-        </div>
-      </section>
+      )}
     </div>
   );
 }
@@ -335,141 +179,290 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function KumihimoDisk({
-  snapshot,
-  strands,
-  slotCount,
-}: {
-  snapshot: StepSnapshot;
-  strands: StrandSpec[];
-  slotCount: number;
-}) {
-  const strandLookup = new Map(strands.map(strand => [strand.id, strand]));
+function KongoDisk({ snapshot }: { snapshot: KongoSnapshot }) {
+  // Intermediate value before min/max clamping; inversely proportional to strand count.
+  const unclamped = SLOT_RADIUS_SCALE_FACTOR - snapshot.slots.length;
+  const slotRadius = Math.max(
+    MIN_SLOT_RADIUS,
+    Math.min(MAX_SLOT_RADIUS, unclamped),
+  );
+  const n = snapshot.slots.length;
+  const half = n / 2;
+
+  // Slot positions never change for a given n (fixed ring geometry).
+  const slotPositions = useMemo(
+    () => Array.from({ length: n }, (_, i) => polar(i, n, RING_RADIUS)),
+    [n],
+  );
+
+  const activeSlotSet = new Set(snapshot.activeSlots);
+
+  // Only the cross step highlights specific pairs; for the rest no pairs are highlighted.
+  const activePairIndices = snapshot.kind === 'cross'
+    ? new Set([0, half / 2])
+    : new Set<number>();
+
+  // ── Animation ────────────────────────────────────────────────────────────
+  // We track the *last rendered* snapshot in a ref so that animations always
+  // run from wherever strands actually were on screen — regardless of whether
+  // the user navigated forward, backward, or jumped several steps at once.
+  //
+  // On initial mount, `snapshot` is always `snapshots[0]` (selectedStep starts
+  // at 0), so the ref starts from the correct beginning state.
+  const prevDisplayedRef = useRef<KongoSnapshot>(snapshot);
+  const nodeRefs = useRef<Map<number, SVGGElement>>(new Map());
+
+  useLayoutEffect(() => {
+    // "From" is the snapshot that was displayed before this render.
+    // Read it BEFORE updating the ref so the trail lines (rendered above in
+    // JSX using the same ref) also see the correct previous state.
+    const prevSnapshot = prevDisplayedRef.current;
+    const prevLookup = new Map(prevSnapshot.slots.map((s, i) => [s.id, i]));
+    const currLookup = new Map(snapshot.slots.map((s, i) => [s.id, i]));
+
+    // Step 1 — snap every strand to its PREVIOUS displayed slot position (no transition).
+    for (const [id, el] of nodeRefs.current) {
+      const prevSlot = prevLookup.get(id) ?? currLookup.get(id) ?? 0;
+      const pos = slotPositions[prevSlot];
+      if (pos) {
+        el.style.transition = 'none';
+        el.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+      }
+    }
+
+    // Force a synchronous reflow so the browser registers the "from" position
+    // before we re-enable the transition.
+    const firstEl = nodeRefs.current.values().next().value as SVGGElement | undefined;
+    void firstEl?.getBoundingClientRect();
+
+    // Step 2 — animate every strand to its CURRENT slot position.
+    for (const [id, el] of nodeRefs.current) {
+      const currSlot = currLookup.get(id) ?? 0;
+      const pos = slotPositions[currSlot];
+      if (pos) {
+        el.style.transition = 'transform var(--animation-duration) ease';
+        el.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+      }
+    }
+
+    // Record this snapshot as "previous" for the next render.
+    prevDisplayedRef.current = snapshot;
+  }, [snapshot, slotPositions]);
+
+  // For drawing motion-trail lines (decorative): use the last-displayed snapshot
+  // as captured by prevDisplayedRef.  Since refs don't trigger re-renders, this
+  // will correctly reflect the OLD value during the render phase (before the
+  // layout effect above runs and updates it).
+  const prevDisplayedLookup = new Map(
+    prevDisplayedRef.current.slots.map((s, i) => [s.id, i]),
+  );
 
   return (
-    <svg width={DISK_SIZE} height={DISK_SIZE} viewBox={`0 0 ${DISK_SIZE} ${DISK_SIZE}`} className="kumihimo-disk">
-      <circle cx={DISK_SIZE / 2} cy={DISK_SIZE / 2} r={RING_RADIUS + 18} fill="var(--bg-secondary)" stroke="var(--border)" />
-      <circle cx={DISK_SIZE / 2} cy={DISK_SIZE / 2} r={52} fill="var(--bg)" stroke="var(--border)" />
-      {snapshot.slots.map(slot => {
-        const position = polar(slot.slotIndex, slotCount, RING_RADIUS);
+    <svg width={DISK_SIZE} height={DISK_SIZE} viewBox={`0 0 ${DISK_SIZE} ${DISK_SIZE}`} className="kongo-disk">
+      <circle cx={DISK_SIZE / 2} cy={DISK_SIZE / 2} r={RING_RADIUS + 22} fill="var(--bg-secondary)" stroke="var(--border)" />
+      <circle cx={DISK_SIZE / 2} cy={DISK_SIZE / 2} r={56} fill="var(--bg)" stroke="var(--border)" />
+
+      {/* Pair guide lines – connect the two slots that form each pair */}
+      {snapshot.pairs.map(pair => {
+        const first = slotPositions[pair.slotA];
+        const second = slotPositions[pair.slotB];
+        if (!first || !second) {
+          return null;
+        }
+        const emphasized = activePairIndices.has(pair.pairIndex);
         return (
-          <g key={slot.slotIndex}>
-            <circle
-              cx={position.x}
-              cy={position.y}
-              r={12}
-              fill={slot.strands.length > 0 ? 'var(--bg)' : 'transparent'}
-              stroke="var(--border)"
+          <g key={`pair-guide-${pair.pairIndex}`}>
+            <line
+              x1={first.x}
+              y1={first.y}
+              x2={second.x}
+              y2={second.y}
+              className={`kongo-pair-guide${emphasized ? ' active' : ''}`}
             />
-            <text x={position.x} y={position.y - 18} textAnchor="middle" className="slot-label">
-              {slot.slotIndex}
+            <text
+              x={(first.x + second.x) / 2}
+              y={(first.y + second.y) / 2 - 12}
+              textAnchor="middle"
+              className="kongo-pair-index"
+            >
+              P{pair.pairIndex + 1}
             </text>
-            {slot.strands.map((strandId, stackIndex) => {
-              const strand = strandLookup.get(strandId);
-              return (
-                <circle
-                  key={strandId}
-                  cx={position.x}
-                  cy={position.y - stackIndex * 5}
-                  r={6}
-                  fill={strand?.color ?? '#999999'}
-                  stroke="var(--fg)"
-                  strokeWidth={1}
-                />
-              );
-            })}
           </g>
         );
       })}
-      <text x={DISK_SIZE / 2} y={DISK_SIZE / 2 - 8} textAnchor="middle" className="disk-center-label">
-        C=({formatNumber(snapshot.center.x)}, {formatNumber(snapshot.center.y)})
-      </text>
-      <text x={DISK_SIZE / 2} y={DISK_SIZE / 2 + 12} textAnchor="middle" className="disk-center-label">
-        H={formatNumber(snapshot.twist)}
-      </text>
-    </svg>
-  );
-}
 
-function CenterTrace({ history }: { history: { x: number; y: number }[] }) {
-  const center = 90;
-  const radius = 78;
-  const maxValue = history.reduce((max, point) => Math.max(max, Math.abs(point.x), Math.abs(point.y)), 1);
-  const scale = radius / maxValue;
-  const lastPoint = history[history.length - 1];
-  const path = history
-    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${center + point.x * scale} ${center - point.y * scale}`)
-    .join(' ');
-
-  return (
-    <svg width="100%" viewBox="0 0 180 180" className="trace-svg">
-      <circle cx={center} cy={center} r={radius} fill="none" stroke="var(--border)" />
-      <line x1={center} y1={12} x2={center} y2={168} stroke="var(--border)" />
-      <line x1={12} y1={center} x2={168} y2={center} stroke="var(--border)" />
-      <path d={path} fill="none" stroke="var(--accent)" strokeWidth={2.5} />
-      {lastPoint ? (
-        <circle
-          cx={center + lastPoint.x * scale}
-          cy={center - lastPoint.y * scale}
-          r={3.5}
-          fill="var(--accent)"
-        />
-      ) : null}
-    </svg>
-  );
-}
-
-function TwistTrace({ history }: { history: number[] }) {
-  const width = 320;
-  const height = 180;
-  const min = Math.min(...history, 0);
-  const max = Math.max(...history, 0);
-  const range = Math.max(max - min, 1);
-  const path = history
-    .map((value, index) => {
-      const x = history.length === 1
-        ? CHART_PADDING
-        : (index / (history.length - 1)) * (width - CHART_INSET) + CHART_PADDING;
-      const y = height - CHART_PADDING - ((value - min) / range) * (height - CHART_INSET);
-      return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
-    })
-    .join(' ');
-  const zeroY = height - CHART_PADDING - ((0 - min) / range) * (height - CHART_INSET);
-
-  return (
-    <svg width="100%" viewBox={`0 0 ${width} ${height}`} className="trace-svg">
-      <line x1={CHART_PADDING} y1={zeroY} x2={width - CHART_PADDING} y2={zeroY} stroke="var(--border)" />
-      <path d={path} fill="none" stroke="var(--accent-2)" strokeWidth={2.5} />
-    </svg>
-  );
-}
-
-function TexturePreview({ segments }: { segments: { surfaceAngle: number; color: string; time: number }[] }) {
-  const width = 320;
-  const height = 220;
-  const maxTime = Math.max(...segments.map(segment => segment.time), 1);
-
-  return (
-    <svg width="100%" viewBox={`0 0 ${width} ${height}`} className="texture-svg">
-      <rect x={0} y={0} width={width} height={height} fill="var(--bg-secondary)" rx={8} />
-      {segments.map((segment, index) => {
-        const x = 12 + (segment.surfaceAngle / (2 * Math.PI)) * (width - 24);
-        const y = 12 + ((segment.time - 1) / maxTime) * (height - 24);
+      {/* Slot rings – active slots get a highlighted border */}
+      {slotPositions.map((position, index) => {
+        const isActive = activeSlotSet.has(index);
         return (
-          <line
-            key={`${segment.time}-${index}`}
-            x1={x - 5}
-            y1={y + 4}
-            x2={x + 5}
-            y2={y - 4}
-            stroke={segment.color}
-            strokeWidth={3}
-            strokeLinecap="round"
-          />
+          <g key={`slot-${index}`}>
+            <circle
+              cx={position.x}
+              cy={position.y}
+              r={slotRadius + (isActive ? 4 : 0)}
+              fill="var(--bg)"
+              stroke={isActive ? 'var(--accent)' : 'var(--border)'}
+              strokeWidth={isActive ? 2 : 1}
+            />
+            <text x={position.x} y={position.y - slotRadius - 8} textAnchor="middle" className="kongo-slot-label">
+              {index}
+            </text>
+          </g>
         );
       })}
+
+      {/* Strand dots – positions driven by useLayoutEffect above (no style prop here). */}
+      {snapshot.slots.map((strand, index) => {
+        // Trail line: drawn relative to the strand's current position.
+        const previousIndex = prevDisplayedLookup.get(strand.id) ?? index;
+        const currPos = slotPositions[index];
+        const prevPos = slotPositions[previousIndex] ?? currPos;
+        const showTrail = snapshot.subStep > 0 && previousIndex !== index && currPos && prevPos;
+
+        return (
+          <g
+            key={strand.id}
+            ref={(el) => {
+              if (el) nodeRefs.current.set(strand.id, el);
+              else nodeRefs.current.delete(strand.id);
+            }}
+            className="kongo-strand-node"
+          >
+            {showTrail && (
+              <line
+                x1={prevPos!.x - currPos!.x}
+                y1={prevPos!.y - currPos!.y}
+                x2={0}
+                y2={0}
+                className="kongo-motion-trail"
+              />
+            )}
+            <circle
+              cx={0}
+              cy={0}
+              r={Math.max(slotRadius - 4, 5)}
+              fill={strand.color}
+              stroke="var(--fg)"
+              strokeWidth={1}
+            />
+            <text x={0} y={4} textAnchor="middle" className="kongo-strand-label">
+              {strand.id}
+            </text>
+          </g>
+        );
+      })}
+
+      <text x={DISK_SIZE / 2} y={DISK_SIZE / 2 + 4} textAnchor="middle" className="kongo-center-label">
+        {formatCenterLabel(snapshot)}
+      </text>
     </svg>
   );
+}
+
+function formatCenterLabel(snapshot: KongoSnapshot): string {
+  switch (snapshot.kind) {
+    case 'start':
+      return 'Start';
+    case 'cross':
+      return `${snapshot.move} cross`;
+    case 'rotate':
+      return 'Rotate ↺ 2';
+    case 'transition':
+      return `→ ${snapshot.move} transition`;
+  }
+}
+
+function KongoSubStepCard({
+  snapshot,
+  previousSnapshot,
+}: {
+  snapshot: KongoSnapshot;
+  previousSnapshot: KongoSnapshot;
+}) {
+  const half = snapshot.slots.length / 2;
+
+  if (snapshot.kind === 'start') {
+    return (
+      <div className="kongo-action-card">
+        <p className="kongo-action-summary">Starting configuration. Use the slider to step through.</p>
+      </div>
+    );
+  }
+
+  if (snapshot.kind === 'rotate') {
+    return (
+      <div className="kongo-action-card">
+        <p className="kongo-action-summary">
+          Disk rotates <strong>counter-clockwise by 2</strong> positions.
+          Every strand moves from slot <em>i</em> to slot <em>(i − 2 + n) mod {snapshot.slots.length}</em>.
+        </p>
+      </div>
+    );
+  }
+
+  if (snapshot.kind === 'transition') {
+    return (
+      <div className="kongo-action-card">
+        <p className="kongo-action-summary">
+          Direction changes to <strong>{snapshot.move}</strong>.
+          Each adjacent pair swaps: 0↔1, 2↔3, 4↔5, …
+        </p>
+      </div>
+    );
+  }
+
+  // cross
+  const dir = snapshot.move!;
+  const cycle = dir === 'Z'
+    ? `0 → 1 → ${half} → ${half + 1} → 0`
+    : `${half} → 1 → 0 → ${half + 1} → ${half}`;
+
+  const prevLookup = createSlotLookup(previousSnapshot);
+
+  return (
+    <div className="kongo-action-card">
+      <p className="kongo-action-summary">
+        <strong>{dir} cross</strong> — 4-cycle: {cycle}
+      </p>
+      <div className="kongo-action-grid">
+        {snapshot.activeSlots.map(destSlot => {
+          const strand = snapshot.slots[destSlot];
+          if (!strand) {
+            return null;
+          }
+          const srcSlot = prevLookup.get(strand.id) ?? destSlot;
+          const moved = srcSlot !== destSlot;
+          return (
+            <div key={destSlot} className={`kongo-action-participant${moved ? ' moving' : ''}`}>
+              <span className="kongo-swatch" style={{ backgroundColor: strand.color }} aria-hidden="true" />
+              <div>
+                <strong>Slot {destSlot}</strong>
+                <div>Strand #{strand.id}</div>
+                {moved && <div className="kongo-action-move">← from slot {srcSlot}</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function createSlotLookup(snapshot: KongoSnapshot): Map<number, number> {
+  return new Map(snapshot.slots.map((strand, index) => [strand.id, index]));
+}
+
+function formatStepLabel(snapshot: KongoSnapshot): string {
+  switch (snapshot.kind) {
+    case 'start':
+      return 'Start';
+    case 'cross':
+      return `${snapshot.sequenceStep}: ${snapshot.move} cross`;
+    case 'rotate':
+      return `${snapshot.sequenceStep}: Rotate ↺2`;
+    case 'transition':
+      return `${snapshot.sequenceStep}: → ${snapshot.move}`;
+  }
 }
 
 function polar(slotIndex: number, slotCount: number, radius: number) {
@@ -480,6 +473,59 @@ function polar(slotIndex: number, slotCount: number, radius: number) {
   };
 }
 
-function formatNumber(value: number): string {
-  return Number.isFinite(value) ? value.toFixed(2) : '—';
+/**
+ * Renders the kumihimo bracelet pattern as an SVG oblique-lattice of overlapping
+ * ellipses, using only the initial strand colors (independent of sequence).
+ *
+ * Layout: r = half the horizontal cell spacing.
+ *   even rows shift right by r (½ step).
+ *   ellipse size: 2.5r × 3r (overlap creates woven look).
+ */
+function KumihimoBraceletPattern({ initialStrands }: { initialStrands: StrandSpec[] }) {
+  const S = initialStrands.length;
+  if (S < 4 || S % 4 !== 0) return null;
+
+  const W = S / 2;
+  const NR = Math.min(Math.round(0.86 * S + 1.56), 40);
+
+  // Cell half-spacing in pixels.
+  const r = 20;
+
+  const pattern = useMemo(
+    () => computeKumihimoPattern(initialStrands, NR),
+    [initialStrands, NR],
+  );
+
+  const svgWidth = (2 * W + 3) * r;
+  const svgHeight = (2 * NR + 2) * r;
+
+  return (
+    <div className="kumihimo-bracelet-scroll">
+      <svg
+        width={svgWidth}
+        height={svgHeight}
+        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+        className="kumihimo-bracelet-svg"
+        aria-label="Kumihimo bracelet pattern preview"
+      >
+        {pattern.map((row, i) =>
+          row.map((color, j) => {
+            // x1=r: left margin of one r; even rows shift right by r.
+            const x = r + (2 * j + 1) * r + (i % 2 === 0 ? r : 0);
+            const y = r + (2 * i + 1) * r;
+            return (
+              <ellipse
+                key={`${i}-${j}`}
+                cx={x}
+                cy={y}
+                rx={1.25 * r}
+                ry={1.5 * r}
+                fill={color}
+              />
+            );
+          }),
+        )}
+      </svg>
+    </div>
+  );
 }
